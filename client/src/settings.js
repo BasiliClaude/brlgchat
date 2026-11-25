@@ -7,7 +7,6 @@
     maxWidthPct: (v) => v + ' %',
     maxHeightPct: (v) => v + ' %',
     durationSec: (v) => v + ' s',
-    maxVideoSec: (v) => v + ' s',
     volume: (v) => v + ' %',
   };
 

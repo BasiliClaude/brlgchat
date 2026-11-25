@@ -82,7 +82,22 @@ function sendOverlaySettings() {
     maxVideoSec: s.maxVideoSec,
     volume: s.volume,
     showText: s.showText,
+    mediaBase: mediaBase(s.serverUrl),
+    accessKey: s.accessKey,
   });
+}
+
+// Adresse http(s) du serveur, d'où l'on télécharge les médias copiés
+function mediaBase(serverUrl) {
+  let u = String(serverUrl || '').trim();
+  if (!u) return null;
+  if (!/^[a-z]+:\/\//i.test(u)) u = 'wss://' + u;
+  try {
+    const url = new URL(u.replace(/^ws:/i, 'http:').replace(/^wss:/i, 'https:'));
+    return ['http:', 'https:'].includes(url.protocol) ? url.origin : null;
+  } catch {
+    return null;
+  }
 }
 
 function showPop(pop) {

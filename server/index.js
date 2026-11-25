@@ -1,7 +1,9 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, Events } = require('discord.js');
 const { createRelay } = require('./relay');
-const { popFromMessage, hasLink } = require('./extract');
+const media = require('./media-cache');
+const { popFromMessage, firstLink, resolveLink, GIF_SITES } = require('./extract');
+const GIF_SITE_RE = new RegExp('^https?://([a-z0-9-]+\\.)*(' + GIF_SITES.map((h) => h.replace(/\./g, '\\.')).join('|') + ')/', 'i');
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_IDS = (process.env.CHANNEL_IDS || process.env.CHANNEL_ID || '')
@@ -12,6 +14,8 @@ const ACCESS_KEY = process.env.ACCESS_KEY;
 const PORT = Number(process.env.PORT || 8080);
 const ALLOW_TEXT_ONLY = (process.env.ALLOW_TEXT_ONLY || 'true').toLowerCase() !== 'false';
 const ACK_EMOJI = process.env.ACK_EMOJI ?? '📺';
+// Supprime le message du salon une fois envoyé aux amis (anti-spoil)
+const DELETE_MESSAGES = (process.env.DELETE_MESSAGES || 'true').toLowerCase() !== 'false';
 
 function fail(msg) {
   console.error(`\n[config] ${msg}\nVoir server/.env.example\n`);
@@ -21,7 +25,8 @@ if (!TOKEN) fail('DISCORD_TOKEN manquant');
 if (!CHANNEL_IDS.length) fail('CHANNEL_IDS manquant');
 if (!ACCESS_KEY || ACCESS_KEY.length < 8) fail('ACCESS_KEY manquant ou trop court (8 caractères minimum)');
 
-const relay = createRelay({ port: PORT, accessKey: ACCESS_KEY });
+media.init();
+const relay = createRelay({ port: PORT, accessKey: ACCESS_KEY, media });
 
 const client = new Client({
   intents: [
@@ -54,23 +59,59 @@ async function handle(message) {
 
   let pop = popFromMessage(message, { allowTextOnly: ALLOW_TEXT_ONLY });
 
-  // Un lien Tenor/Giphy : Discord ajoute l'aperçu (embed) une seconde après.
-  if ((!pop || !pop.media) && hasLink(message.content) && !(message.attachments?.size)) {
-    await new Promise((r) => setTimeout(r, 1800));
-    try {
-      const fresh = await message.channel.messages.fetch({ message: message.id, force: true });
-      pop = popFromMessage(fresh, { allowTextOnly: ALLOW_TEXT_ONLY }) || pop;
-    } catch {
-      /* message supprimé entre-temps */
-      return;
+  // Un lien (Tenor, Klipy, Giphy…) : Discord ajoute l'aperçu (embed) un peu après.
+  // On regarde à nouveau le message, puis on lit la page du lien si besoin.
+  const link = firstLink(message.content);
+  if ((!pop || !pop.media) && link && !(message.attachments?.size)) {
+    for (const wait of [1500, 2000]) {
+      await new Promise((r) => setTimeout(r, wait));
+      let fresh;
+      try {
+        fresh = await message.channel.messages.fetch({ message: message.id, force: true });
+      } catch {
+        return; // message supprimé entre-temps
+      }
+      const p = popFromMessage(fresh, { allowTextOnly: ALLOW_TEXT_ONLY });
+      if (p && p.media) {
+        pop = p;
+        break;
+      }
+    }
+    if (!pop || !pop.media) {
+      const linkMedia = await resolveLink(link);
+      if (linkMedia) pop = popFromMessage(message, { allowTextOnly: ALLOW_TEXT_ONLY, linkMedia });
+      else if (pop && GIF_SITE_RE.test(link)) pop = null; // lien de gif illisible : on n'affiche pas juste l'URL
     }
   }
   if (!pop) return;
 
   remember(message.id);
+
+  // Copie du média sur le serveur : les applis le téléchargent ici,
+  // ce qui permet de supprimer le message Discord sans casser l'affichage.
+  let cached = false;
+  if (pop.media) {
+    const id = await media.store(pop.media.url);
+    if (id) {
+      pop.media.local = `/media/${id}`;
+      cached = true;
+    }
+  }
+
   const n = relay.broadcast(pop);
-  console.log(`[bot] ${pop.author.name}: ${pop.media ? pop.media.kind : 'texte'} -> ${n} ami(s)`);
-  if (ACK_EMOJI && n > 0) message.react(ACK_EMOJI).catch(() => {});
+  console.log(`[bot] ${pop.author.name}: ${pop.media ? pop.media.kind + (cached ? ' (copié)' : '') : 'texte'} -> ${n} ami(s)`);
+
+  if (DELETE_MESSAGES) {
+    // Si la copie a échoué, on laisse le temps aux applis de charger le lien Discord
+    const delay = !pop.media || cached ? 800 : 20000;
+    setTimeout(() => {
+      message.delete().catch((e) => {
+        if (e.code === 50013) console.error('[bot] Impossible de supprimer : donne la permission "Gérer les messages" au bot.');
+      });
+    }, delay);
+  } else if (ACK_EMOJI && n > 0) {
+    message.react(ACK_EMOJI).catch(() => {});
+  }
 }
 
 client.once(Events.ClientReady, (c) => {

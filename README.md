@@ -20,10 +20,11 @@ Ce n'est pas un overlay de stream : c'est une appli de bureau qui affiche le mé
   - `Alt + Shift + L` : **ON/OFF** de la réception.
   - Les deux sont modifiables dans les paramètres.
 - 🔴 **Interrupteur ON/OFF** (dans les paramètres et en clic droit sur l'icône près de l'horloge) : idéal quand tu es en live ou que tu ne veux pas être dérangé.
-- ⏱️ Durée d'affichage, durée max des vidéos et volume réglables.
+- ⏱️ Texte seul : 3 s. Gifs : 5 s. Images : durée réglable. Vidéos : jouées en entier, avec le son (volume réglable).
+- 🙈 **Anti-spoil** : le bot supprime le message du salon dès qu'il est envoyé aux potes. Le serveur garde une copie du média 15 minutes pour que tout le monde puisse le voir.
 - 🔒 Les clics passent à travers l'image, et l'appli n'affiche que des médias hébergés par Discord (pas de lien vers des sites inconnus).
 
-Sur Discord, tape `!lc` dans le salon pour voir qui est connecté. Le bot met une réaction 📺 sur chaque message envoyé aux potes.
+Sur Discord, tape `!lc` dans le salon pour voir qui est connecté.
 
 ## Comment ça marche
 
@@ -44,7 +45,7 @@ Il y a **un seul serveur** pour tout le groupe, installé par une personne (toi)
    - Plus bas, dans **Privileged Gateway Intents**, active **MESSAGE CONTENT INTENT** et enregistre.
 3. Onglet **OAuth2** puis **URL Generator** :
    - Coche `bot` dans *Scopes*.
-   - Dans *Bot Permissions*, coche `View Channels`, `Read Message History`, `Send Messages` et `Add Reactions`.
+   - Dans *Bot Permissions*, coche `View Channels`, `Read Message History`, `Send Messages` et `Manage Messages` (pour supprimer les messages après envoi).
    - Ouvre l'URL générée en bas et ajoute le bot à ton serveur Discord.
 4. Crée un salon texte dédié, par exemple `#livechat`.
 5. Récupère l'**ID du salon** : dans Discord, *Paramètres utilisateur > Avancés > Mode développeur* (à activer), puis clic droit sur le salon > **Copier l'identifiant du salon**.
@@ -157,4 +158,13 @@ client/   appli Electron                                         npm start / npm
 - `server/extract.js` : transforme un message Discord en pop. `server/relay.js` : le relais.
 - `client/tools/make-icons.js` régénère les icônes.
 
-Variables optionnelles du serveur : `ALLOW_TEXT_ONLY=false` pour ignorer les messages sans média, `ACK_EMOJI=` (vide) pour désactiver la réaction du bot.
+Variables optionnelles du serveur :
+- `DELETE_MESSAGES=false` : ne plus supprimer les messages du salon (le bot met alors une réaction `ACK_EMOJI`, 📺 par défaut).
+- `ALLOW_TEXT_ONLY=false` : ignorer les messages sans média.
+- `MEDIA_MAX_MB=200` : taille max d'un média copié par le serveur.
+
+Gifs par lien : Tenor, Giphy, Klipy, Imgur et GifDB marchent. Si Discord n'affiche pas d'aperçu, le serveur lit lui-même la page du lien.
+
+### Si le bot ne supprime pas les messages
+
+Il lui manque la permission **Gérer les messages**. Sur Discord : clic droit sur le salon > *Modifier le salon* > *Permissions* > ajoute le rôle du bot > coche **Gérer les messages** > *Enregistrer*. Le message `Impossible de supprimer` apparaît aussi dans les logs Railway.

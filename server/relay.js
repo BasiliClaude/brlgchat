@@ -10,10 +10,25 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(ha, hb);
 }
 
-function createRelay({ port, accessKey, log = console.log }) {
+function createRelay({ port, accessKey, log = console.log, media = null }) {
   if (!accessKey) throw new Error('ACCESS_KEY manquant');
 
   const server = http.createServer((req, res) => {
+    // Médias copiés par le serveur : /media/<id>?key=MOT_DE_PASSE
+    const m = /^\/media\/([a-f0-9]{24})(\?|$)/.exec(req.url || '');
+    if (m && media) {
+      let key = '';
+      try {
+        key = new URL(req.url, 'http://localhost').searchParams.get('key') || '';
+      } catch {
+        /* rien */
+      }
+      if (!safeEqual(key, accessKey)) {
+        res.writeHead(401);
+        return res.end();
+      }
+      return media.serve(req, res, m[1]);
+    }
     // Page de santé (utile pour les hébergeurs qui vérifient que le service tourne)
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end(`LiveChat relais OK - ${countClients()} ami(s) connecte(s)\n`);

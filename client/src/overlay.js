@@ -3,36 +3,53 @@
   const api = window.livechat;
   const stage = document.getElementById('stage');
   const MAX_QUEUE = 15;
-  const ALLOWED_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
+  const TEXT_ONLY_SEC = 3; // texte seul
+  const GIF_SEC = 5; // gifs
+  const VIDEO_SAFETY_SEC = 600; // une vidéo se joue en entier (filet de sécurité à 10 min)
+  const DISCORD_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
+  const GIF_SITES = ['tenor.com', 'giphy.com', 'klipy.com', 'klipy.co', 'imgur.com', 'gifdb.com'];
 
   let cfg = {
     position: 'top-right',
     maxWidthPct: 30,
     maxHeightPct: 35,
     durationSec: 10,
-    maxVideoSec: 30,
     volume: 50,
     showText: true,
+    mediaBase: null,
+    accessKey: '',
   };
   let queue = [];
-  let current = null; // { el, timers: [], media }
+  let current = null; // { token, el, timers: [], media }
+
+  function hostAllowed(h) {
+    return DISCORD_HOSTS.includes(h) || GIF_SITES.some((s) => h === s || h.endsWith('.' + s));
+  }
 
   function safeUrl(u, allowData) {
     if (!u) return null;
     if (allowData && /^data:image\/(svg\+xml|png|gif|jpeg|webp);base64,/.test(u)) return u;
     try {
       const url = new URL(u);
-      return url.protocol === 'https:' && ALLOWED_HOSTS.includes(url.hostname) ? url.toString() : null;
+      return url.protocol === 'https:' && hostAllowed(url.hostname) ? url.toString() : null;
     } catch {
       return null;
     }
+  }
+
+  // Média copié par notre serveur (prioritaire : le message Discord a pu être supprimé)
+  function mediaUrl(m, isTest) {
+    if (m.local && cfg.mediaBase && /^\/media\/[a-f0-9]+$/.test(m.local)) {
+      return `${cfg.mediaBase}${m.local}?key=${encodeURIComponent(cfg.accessKey || '')}`;
+    }
+    return safeUrl(m.url, isTest);
   }
 
   function applyCfg() {
     document.body.className = 'pos-' + (cfg.position || 'top-right');
     document.documentElement.style.setProperty('--max-w', cfg.maxWidthPct + 'vw');
     document.documentElement.style.setProperty('--max-h', cfg.maxHeightPct + 'vh');
-    if (current && current.media && current.media.tagName === 'VIDEO') {
+    if (current && current.media && current.media.tagName === 'VIDEO' && !current.media.muted) {
       current.media.volume = cfg.volume / 100;
     }
   }
@@ -44,22 +61,17 @@
     return e;
   }
 
-  function buildCaption(pop) {
-    if (!cfg.showText && pop.media) return null;
-    const cap = el('div', 'caption');
+  function buildHead(pop) {
+    const head = el('div', 'head');
     const avatarUrl = safeUrl(pop.author && pop.author.avatar);
     const av = avatarUrl ? el('img', 'avatar') : el('div', 'avatar');
     if (avatarUrl) {
       av.src = avatarUrl;
-      av.onerror = () => (av.style.visibility = 'hidden');
+      av.onerror = () => av.removeAttribute('src');
     }
-    cap.appendChild(av);
-    const body = el('div');
-    body.style.minWidth = '0';
-    body.appendChild(el('div', 'who', (pop.author && pop.author.name) || 'Quelqu’un'));
-    if (pop.text && cfg.showText) body.appendChild(el('div', 'text', pop.text));
-    cap.appendChild(body);
-    return cap;
+    head.appendChild(av);
+    head.appendChild(el('div', 'who outlined', (pop.author && pop.author.name) || 'Quelqu’un'));
+    return head;
   }
 
   function finish(token) {
@@ -73,13 +85,10 @@
       c.el.remove();
       current = null;
       next();
-    }, 250);
+    }, 150);
   }
 
-  function startTimer(token, card, seconds) {
-    const bar = el('div', 'bar');
-    bar.style.animationDuration = seconds + 's';
-    card.appendChild(bar);
+  function after(token, seconds) {
     current.timers.push(setTimeout(() => finish(token), seconds * 1000));
   }
 
@@ -93,27 +102,33 @@
     api.busy();
     const token = Symbol('pop');
     const card = el('div', 'pop');
+    const block = el('div', 'block');
+    card.appendChild(block);
     current = { token, el: card, timers: [], media: null };
 
     const m = pop.media;
-    const url = m && safeUrl(m.url, pop.test);
-    const caption = buildCaption(pop);
+    const url = m && mediaUrl(m, pop.test);
+    const withText = cfg.showText;
 
-    const show = () => {
+    const show = (mediaEl) => {
       if (!current || current.token !== token) return;
-      if (caption) card.appendChild(caption);
+      if (withText) block.appendChild(buildHead(pop));
+      if (mediaEl) block.appendChild(mediaEl);
+      if (withText && pop.text) card.appendChild(el('div', 'text outlined', pop.text));
       stage.appendChild(card);
     };
     // Si le média ne charge pas à temps, on passe au suivant
-    current.timers.push(setTimeout(() => {
-      if (!card.isConnected) finish(token);
-    }, 12000));
+    current.timers.push(
+      setTimeout(() => {
+        if (!card.isConnected) finish(token);
+      }, 15000)
+    );
 
     if (!m || !url) {
-      if (!pop.text) return finish(token);
+      if (!pop.text || !withText) return finish(token);
       card.classList.add('text-only');
-      show();
-      startTimer(token, card, Math.min(cfg.durationSec, 8));
+      show(null);
+      after(token, TEXT_ONLY_SEC);
       return;
     }
 
@@ -121,9 +136,8 @@
       const img = el('img', 'media');
       img.decoding = 'async';
       img.onload = () => {
-        card.appendChild(img);
-        show();
-        startTimer(token, card, cfg.durationSec);
+        show(img);
+        after(token, m.gif || /\.gif(\?|$)/i.test(m.url || '') ? GIF_SEC : cfg.durationSec);
       };
       img.onerror = () => finish(token);
       img.src = url;
@@ -137,22 +151,26 @@
       v.autoplay = true;
       v.playsInline = true;
       v.preload = 'auto';
-      v.volume = cfg.volume / 100;
       if (m.gif) {
-        // Les "gifs" Tenor sont des petites vidéos muettes en boucle
+        // Les "gifs" Tenor/Klipy/Giphy sont des petites vidéos muettes en boucle
         v.muted = true;
         v.loop = true;
+      } else {
+        v.muted = false;
+        v.volume = cfg.volume / 100;
       }
       let started = false;
       v.onloadeddata = () => {
         if (started) return;
         started = true;
-        if (isAudio) card.appendChild(el('div', 'audio', '🔊'));
-        else card.appendChild(v);
-        show();
-        v.play().catch(() => {});
-        const len = m.gif || !isFinite(v.duration) ? cfg.durationSec : Math.min(v.duration, cfg.maxVideoSec);
-        startTimer(token, card, Math.max(2, len + (m.gif ? 0 : 0.3)));
+        show(isAudio ? el('div', 'audio', '🔊') : v);
+        v.play().catch(() => {
+          // lecture avec le son refusée : on retente en muet plutôt que de ne rien montrer
+          v.muted = true;
+          v.play().catch(() => {});
+        });
+        // gif : 5 s ; vidéo / son : jusqu'à la fin (onended)
+        after(token, m.gif ? GIF_SEC : VIDEO_SAFETY_SEC);
       };
       v.onended = () => finish(token);
       v.onerror = () => finish(token);
