@@ -133,7 +133,7 @@
     const placed = !!pop.layout && cfg.allowPlaced !== false;
     const bare = placed && !!pop.bare;
     const withText = cfg.showText && !bare;
-    const withHead = withText && !pop.anonymous;
+    const withHead = withText && !pop.anonymous && !!(pop.author && pop.author.name);
     const imageSec = pop.fromApp ? pop.durationSec || IMAGE_SEC : IMAGE_SEC;
     const textSec = pop.fromApp ? pop.durationSec || TEXT_ONLY_SEC : TEXT_ONLY_SEC;
     if (placed) {
