@@ -6,7 +6,6 @@
   const RANGES = {
     maxWidthPct: (v) => v + ' %',
     maxHeightPct: (v) => v + ' %',
-    durationSec: (v) => v + ' s',
     volume: (v) => v + ' %',
   };
 

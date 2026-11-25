@@ -20,7 +20,7 @@ Ce n'est pas un overlay de stream : c'est une appli de bureau qui affiche le mé
   - `Alt + Shift + L` : **ON/OFF** de la réception.
   - Les deux sont modifiables dans les paramètres.
 - 🔴 **Interrupteur ON/OFF** (dans les paramètres et en clic droit sur l'icône près de l'horloge) : idéal quand tu es en live ou que tu ne veux pas être dérangé.
-- ⏱️ Texte seul : 3 s. Gifs : 5 s. Images : durée réglable. Vidéos : jouées en entier, avec le son (volume réglable).
+- ⏱️ Texte seul : 3 s. Images et gifs : 5 s. Vidéos : jouées en entier, avec le son (volume réglable).
 - 🙈 **Anti-spoil** : le bot supprime le message du salon dès qu'il est envoyé aux potes. Le serveur garde une copie du média 15 minutes pour que tout le monde puisse le voir.
 - 🔒 Les clics passent à travers l'image, et l'appli n'affiche que des médias hébergés par Discord (pas de lien vers des sites inconnus).
 

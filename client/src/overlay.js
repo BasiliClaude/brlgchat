@@ -4,7 +4,7 @@
   const stage = document.getElementById('stage');
   const MAX_QUEUE = 15;
   const TEXT_ONLY_SEC = 3; // texte seul
-  const GIF_SEC = 5; // gifs
+  const IMAGE_SEC = 5; // images et gifs
   const VIDEO_SAFETY_SEC = 600; // une vidéo se joue en entier (filet de sécurité à 10 min)
   const DISCORD_HOSTS = ['cdn.discordapp.com', 'media.discordapp.net'];
   const GIF_SITES = ['tenor.com', 'giphy.com', 'klipy.com', 'klipy.co', 'imgur.com', 'gifdb.com'];
@@ -13,7 +13,6 @@
     position: 'top-right',
     maxWidthPct: 30,
     maxHeightPct: 35,
-    durationSec: 10,
     volume: 50,
     showText: true,
     mediaBase: null,
@@ -137,7 +136,7 @@
       img.decoding = 'async';
       img.onload = () => {
         show(img);
-        after(token, m.gif || /\.gif(\?|$)/i.test(m.url || '') ? GIF_SEC : cfg.durationSec);
+        after(token, IMAGE_SEC);
       };
       img.onerror = () => finish(token);
       img.src = url;
@@ -170,7 +169,7 @@
           v.play().catch(() => {});
         });
         // gif : 5 s ; vidéo / son : jusqu'à la fin (onended)
-        after(token, m.gif ? GIF_SEC : VIDEO_SAFETY_SEC);
+        after(token, m.gif ? IMAGE_SEC : VIDEO_SAFETY_SEC);
       };
       v.onended = () => finish(token);
       v.onerror = () => finish(token);
