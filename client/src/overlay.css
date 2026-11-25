@@ -132,6 +132,9 @@ body.pos-bottom-right #stage  { align-items: flex-end;   justify-content: flex-e
 }
 
 video.media { background: #000; }
+/* Images (PNG transparents) : ombre qui suit la forme de l'image, pas un rectangle */
+img.media { box-shadow: none; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45)); }
+.pop.placed.bare img.media { filter: none; }
 
 /* Envoi placé : position et taille exactes choisies par l'envoyeur */
 .pop.placed {
