@@ -1,0 +1,160 @@
+# LiveChat 📺
+
+Un petit logiciel pour rigoler entre potes : quand quelqu'un poste une image, un gif ou une vidéo (avec ou sans texte) dans un salon Discord dédié, **ça pop directement sur l'écran de tous les amis connectés** pendant quelques secondes.
+
+Ce n'est pas un overlay de stream : c'est une appli de bureau qui affiche le média par-dessus tout ce que tu fais (jeu, navigateur…), sans bloquer la souris.
+
+<p align="center">
+  <img src="docs/pop-exemple.png" alt="Un pop qui apparaît en haut à droite de l'écran" width="420" />
+  &nbsp;
+  <img src="docs/parametres.png" alt="La fenêtre de paramètres" width="300" />
+</p>
+
+## Ce que fait l'appli
+
+- 🖼️ Images, gifs (y compris les liens Tenor/Giphy), vidéos, stickers, sons, et messages texte.
+- 🖥️ **Choix de l'écran** pour ceux qui en ont plusieurs (bouton « Identifier » pour savoir qui est qui).
+- 📐 **Taille max réglable** (en % de l'écran) et **position** (coins, centre…), pour ne jamais prendre tout l'écran.
+- ⌨️ **Raccourcis clavier globaux**, qui marchent même en jeu :
+  - `Alt + Shift + H` : fait disparaître tout de suite ce qui s'affiche (et vide la file d'attente).
+  - `Alt + Shift + L` : **ON/OFF** de la réception.
+  - Les deux sont modifiables dans les paramètres.
+- 🔴 **Interrupteur ON/OFF** (dans les paramètres et en clic droit sur l'icône près de l'horloge) : idéal quand tu es en live ou que tu ne veux pas être dérangé.
+- ⏱️ Durée d'affichage, durée max des vidéos et volume réglables.
+- 🔒 Les clics passent à travers l'image, et l'appli n'affiche que des médias hébergés par Discord (pas de lien vers des sites inconnus).
+
+Sur Discord, tape `!lc` dans le salon pour voir qui est connecté. Le bot met une réaction 📺 sur chaque message envoyé aux potes.
+
+## Comment ça marche
+
+```
+ Salon Discord  ──►  Serveur (bot Discord + relais)  ──►  Appli LiveChat chez chaque pote
+  "#livechat"         hébergé en ligne, 24h/24              (Windows / Mac / Linux)
+```
+
+Il y a **un seul serveur** pour tout le groupe, installé par une personne (toi). Les autres installent juste l'appli. Personne n'a besoin de laisser son PC allumé.
+
+---
+
+## Partie 1 : créer le bot Discord (une seule fois, 5 minutes)
+
+1. Va sur le [Discord Developer Portal](https://discord.com/developers/applications) et clique **New Application**. Donne-lui un nom (ex : `LiveChat`).
+2. Dans le menu de gauche, onglet **Bot** :
+   - Clique **Reset Token**, puis copie le token et garde-le de côté. ⚠️ Ne le partage jamais : c'est le mot de passe du bot.
+   - Plus bas, dans **Privileged Gateway Intents**, active **MESSAGE CONTENT INTENT** et enregistre.
+3. Onglet **OAuth2** puis **URL Generator** :
+   - Coche `bot` dans *Scopes*.
+   - Dans *Bot Permissions*, coche `View Channels`, `Read Message History`, `Send Messages` et `Add Reactions`.
+   - Ouvre l'URL générée en bas et ajoute le bot à ton serveur Discord.
+4. Crée un salon texte dédié, par exemple `#livechat`.
+5. Récupère l'**ID du salon** : dans Discord, *Paramètres utilisateur > Avancés > Mode développeur* (à activer), puis clic droit sur le salon > **Copier l'identifiant du salon**.
+6. Invente un **mot de passe du groupe** (au moins 8 caractères, ex : `pizza-ananas-2026`). Tu le donneras à tes potes pour qu'ils se connectent.
+
+Tu as maintenant les 3 infos dont le serveur a besoin :
+
+| Réglage | C'est quoi |
+|---|---|
+| `DISCORD_TOKEN` | le token du bot (étape 2) |
+| `CHANNEL_IDS` | l'ID du salon (étape 5). Plusieurs salons possibles, séparés par des virgules |
+| `ACCESS_KEY` | le mot de passe du groupe (étape 6) |
+
+## Partie 2 : héberger le serveur en ligne
+
+### Option A (conseillée) : Railway, le plus simple
+
+Pas de ligne de commande, tout se fait sur le site. Compte environ 5 $/mois (formule Hobby), largement suffisant.
+
+1. Crée un compte sur [railway.com](https://railway.com) en te connectant avec GitHub.
+2. **New Project** > **Deploy from GitHub repo** > choisis ce dépôt (`brlgchat`). Autorise Railway à le lire si on te le demande.
+3. Clique sur le service créé, puis :
+   - **Settings > Source > Root Directory** : mets `server`. Railway trouve alors le `Dockerfile` tout seul.
+   - **Variables** : ajoute `DISCORD_TOKEN`, `CHANNEL_IDS` et `ACCESS_KEY` avec tes valeurs.
+   - **Settings > Networking > Generate Domain** : Railway te donne une adresse du type `brlgchat-production.up.railway.app`. Si on te demande un port, mets `8080`.
+4. Attends que le déploiement soit vert. Dans **Deployments > View logs**, tu dois voir :
+   ```
+   [relais] en écoute sur le port 8080
+   [bot] connecté en tant que LiveChat#1234, salon(s) écouté(s) : ...
+   ```
+5. Ouvre l'adresse dans ton navigateur : tu dois lire `LiveChat relais OK`.
+
+L'**adresse du serveur** à donner à tes potes est alors : `wss://brlgchat-production.up.railway.app` (avec ton domaine à toi).
+
+Chaque fois que tu pousses une modification sur GitHub, Railway redéploie tout seul.
+
+### Option B : gratuit, sur un petit serveur Linux (VPS)
+
+Si tu as un VPS (Oracle Cloud Free Tier, un Raspberry Pi, un vieux PC qui reste allumé…) :
+
+```bash
+git clone https://github.com/BasiliClaude/brlgchat.git
+cd brlgchat/server
+cp .env.example .env        # puis remplis DISCORD_TOKEN, CHANNEL_IDS, ACCESS_KEY
+docker build -t livechat .
+docker run -d --restart unless-stopped --env-file .env -p 8080:8080 --name livechat livechat
+```
+
+L'adresse du serveur sera `ws://IP-DU-SERVEUR:8080` (pense à ouvrir le port 8080 dans le pare-feu). Pour du `wss://` chiffré, mets un reverse proxy comme [Caddy](https://caddyserver.com) devant.
+
+### Option C : pour tester sur ton PC
+
+Il faut [Node.js](https://nodejs.org) 18 ou plus.
+
+```bash
+cd server
+cp .env.example .env        # puis remplis les 3 valeurs
+npm install
+npm start
+```
+
+L'adresse sera `ws://localhost:8080` (pour toi seulement).
+
+## Partie 3 : installer l'appli (toi et tes potes)
+
+### Récupérer l'installeur
+
+Les installeurs sont construits automatiquement par GitHub :
+
+1. Onglet **Actions** du dépôt > **Construire l'appli** > **Run workflow**. Au bout de 5 à 10 minutes, les fichiers sont dans la section *Artifacts* en bas de la page du run.
+2. Ou crée un tag de version (`git tag v1.0.0 && git push --tags`) : une **Release** apparaît avec les installeurs.
+
+> Le dépôt est privé, donc tes potes ne peuvent pas télécharger depuis GitHub. Le plus simple : envoie-leur le fichier `LiveChat-Setup-x.y.z.exe` directement sur Discord. (Rien de secret n'est stocké dans le code, tu peux aussi rendre le dépôt public si tu préfères.)
+
+### Installer
+
+- **Windows** : lance `LiveChat-Setup-x.y.z.exe`. Windows peut afficher « Windows a protégé votre ordinateur » parce que l'appli n'est pas signée (un certificat coûte cher) : clique **Informations complémentaires** puis **Exécuter quand même**.
+- **Mac** : ouvre le `.dmg` et glisse LiveChat dans Applications. Au premier lancement, fais **clic droit > Ouvrir** (l'appli n'est pas signée).
+- **Linux** : rends le `.AppImage` exécutable (`chmod +x`) et lance-le.
+
+### Configurer
+
+Au premier lancement, la fenêtre de paramètres s'ouvre :
+
+1. **Adresse du serveur** : `wss://…` (donnée par celui qui héberge).
+2. **Mot de passe du groupe** : le `ACCESS_KEY`.
+3. **Ton pseudo** : pour que les autres voient que tu es connecté avec `!lc`.
+4. Le rond passe au vert « Connecté ». Clique **Tester l'affichage** pour régler l'écran, la position et la taille.
+
+Fermer la fenêtre ne quitte pas l'appli : elle reste dans la barre des tâches, près de l'horloge (clic sur l'icône pour rouvrir les paramètres, clic droit pour le menu ON/OFF). Coche « Lancer au démarrage » pour ne plus y penser.
+
+## Bon à savoir
+
+- **Jeux en plein écran exclusif** : certains jeux en « plein écran » pur passent par-dessus toutes les fenêtres. Mets le jeu en **plein écran fenêtré** (ou « sans bordure ») et les pops s'afficheront par-dessus.
+- Plusieurs messages d'affilée s'affichent **les uns après les autres** (file d'attente). Le raccourci « masquer » vide la file.
+- Les gifs s'affichent pendant la durée choisie ; les vidéos jusqu'à leur fin, sans dépasser la durée max.
+- Quand la réception est sur OFF, l'appli se déconnecte : tu n'apparais plus dans `!lc` et tu ne rates rien d'embarrassant en live.
+- Pour vérifier une installation sans serveur, lance l'appli avec la variable `LIVECHAT_DEMO=1` : un pop de test s'affiche au démarrage.
+
+## Développement
+
+```
+server/   bot Discord (discord.js) + relais WebSocket (ws)       npm start / npm test
+client/   appli Electron                                         npm start / npm run dist
+```
+
+- `client/src/main.js` : fenêtre transparente, icône, raccourcis, connexion.
+- `client/src/overlay.*` : l'affichage des pops (file d'attente, animations).
+- `client/src/settings.*` : la fenêtre de paramètres.
+- `server/extract.js` : transforme un message Discord en pop. `server/relay.js` : le relais.
+- `client/tools/make-icons.js` régénère les icônes.
+
+Variables optionnelles du serveur : `ALLOW_TEXT_ONLY=false` pour ignorer les messages sans média, `ACK_EMOJI=` (vide) pour désactiver la réaction du bot.

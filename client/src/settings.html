@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;" />
+  <title>LiveChat - Paramètres</title>
+  <link rel="stylesheet" href="settings.css" />
+</head>
+<body>
+  <header>
+    <img src="../assets/icon.png" alt="" class="logo" />
+    <div class="head-text">
+      <h1>LiveChat</h1>
+      <div id="status" class="status">…</div>
+    </div>
+    <label class="big-switch" title="Activer / désactiver la réception">
+      <input type="checkbox" id="enabled" />
+      <span class="track"><span class="thumb"></span></span>
+      <span id="enabledLabel" class="switch-label">ON</span>
+    </label>
+  </header>
+
+  <main>
+    <section>
+      <h2>Connexion</h2>
+      <label class="field">
+        <span>Adresse du serveur</span>
+        <input id="serverUrl" type="text" placeholder="wss://ton-serveur.up.railway.app" spellcheck="false" />
+      </label>
+      <label class="field">
+        <span>Mot de passe du groupe</span>
+        <div class="row">
+          <input id="accessKey" type="password" placeholder="donné par celui qui héberge" spellcheck="false" />
+          <button type="button" id="showKey" class="ghost">Voir</button>
+        </div>
+      </label>
+      <label class="field">
+        <span>Ton pseudo <small>(visible avec la commande !lc sur Discord)</small></span>
+        <input id="nickname" type="text" maxlength="32" placeholder="ex : Basile" />
+      </label>
+    </section>
+
+    <section>
+      <h2>Affichage</h2>
+      <label class="field">
+        <span>Écran</span>
+        <div class="row">
+          <select id="displayId"></select>
+          <button type="button" id="identify" class="ghost">Identifier</button>
+        </div>
+      </label>
+      <label class="field">
+        <span>Position</span>
+        <div class="pos-grid" id="positionGrid">
+          <button type="button" data-pos="top-left" title="En haut à gauche">↖</button>
+          <button type="button" data-pos="top-center" title="En haut au centre">↑</button>
+          <button type="button" data-pos="top-right" title="En haut à droite">↗</button>
+          <span></span>
+          <button type="button" data-pos="center" title="Au centre">●</button>
+          <span></span>
+          <button type="button" data-pos="bottom-left" title="En bas à gauche">↙</button>
+          <button type="button" data-pos="bottom-center" title="En bas au centre">↓</button>
+          <button type="button" data-pos="bottom-right" title="En bas à droite">↘</button>
+        </div>
+      </label>
+      <label class="field">
+        <span>Largeur max : <b id="maxWidthPctVal"></b> de l'écran</span>
+        <input id="maxWidthPct" type="range" min="5" max="100" step="1" />
+      </label>
+      <label class="field">
+        <span>Hauteur max : <b id="maxHeightPctVal"></b> de l'écran</span>
+        <input id="maxHeightPct" type="range" min="5" max="100" step="1" />
+      </label>
+      <label class="field">
+        <span>Durée d'une image / gif : <b id="durationSecVal"></b></span>
+        <input id="durationSec" type="range" min="2" max="60" step="1" />
+      </label>
+      <label class="field">
+        <span>Durée max d'une vidéo : <b id="maxVideoSecVal"></b></span>
+        <input id="maxVideoSec" type="range" min="3" max="120" step="1" />
+      </label>
+      <label class="field">
+        <span>Volume des vidéos : <b id="volumeVal"></b></span>
+        <input id="volume" type="range" min="0" max="100" step="5" />
+      </label>
+      <label class="check">
+        <input id="showText" type="checkbox" /> Afficher le pseudo et le texte sous le média
+      </label>
+      <button type="button" id="test" class="primary">Tester l'affichage</button>
+    </section>
+
+    <section>
+      <h2>Raccourcis clavier</h2>
+      <p class="hint">Clique sur un raccourci puis appuie sur la combinaison voulue. Échap pour annuler, Retour arrière pour effacer.</p>
+      <div class="field">
+        <span>Masquer ce qui s'affiche tout de suite</span>
+        <button type="button" class="hotkey" data-key="hotkeyHide"></button>
+        <div class="err" data-err="hotkeyHide"></div>
+      </div>
+      <div class="field">
+        <span>Activer / désactiver la réception</span>
+        <button type="button" class="hotkey" data-key="hotkeyToggle"></button>
+        <div class="err" data-err="hotkeyToggle"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Démarrage</h2>
+      <label class="check">
+        <input id="autoStart" type="checkbox" /> Lancer LiveChat au démarrage de l'ordinateur
+      </label>
+      <p class="hint">Fermer cette fenêtre ne quitte pas LiveChat : il reste dans la barre des tâches (icône près de l'horloge).</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="settings.js"></script>
+</body>
+</html>

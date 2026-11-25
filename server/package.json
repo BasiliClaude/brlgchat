@@ -1,0 +1,20 @@
+{
+  "name": "livechat-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bot Discord + relais WebSocket pour LiveChat",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "ws": "^8.18.0"
+  }
+}

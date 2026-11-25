@@ -1,0 +1,63 @@
+{
+  "name": "livechat",
+  "productName": "LiveChat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fait apparaître à l'écran les images, gifs et vidéos postés par tes potes sur Discord",
+  "main": "src/main.js",
+  "author": "LiveChat",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "fr.amis.livechat",
+    "productName": "LiveChat",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "LiveChat-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.social-networking",
+      "artifactName": "LiveChat-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "assets/icon.png",
+      "category": "Network",
+      "artifactName": "LiveChat-${version}.${ext}"
+    },
+    "publish": null
+  }
+}
