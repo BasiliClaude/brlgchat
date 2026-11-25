@@ -3,6 +3,7 @@ const { Client, GatewayIntentBits, Partials, Events, cleanContent } = require('d
 const { createRelay } = require('./relay');
 const media = require('./media-cache');
 const { popFromMessage, firstLink, resolveLink, GIF_SITES } = require('./extract');
+const { createAppSender } = require('./app-send');
 const GIF_SITE_RE = new RegExp('^https?://([a-z0-9-]+\\.)*(' + GIF_SITES.map((h) => h.replace(/\./g, '\\.')).join('|') + ')/', 'i');
 
 const TOKEN = process.env.DISCORD_TOKEN;
@@ -26,7 +27,9 @@ if (!CHANNEL_IDS.length) fail('CHANNEL_IDS manquant');
 if (!ACCESS_KEY || ACCESS_KEY.length < 8) fail('ACCESS_KEY manquant ou trop court (8 caractères minimum)');
 
 media.init();
-const relay = createRelay({ port: PORT, accessKey: ACCESS_KEY, media });
+let handleAppMessage = null;
+const relay = createRelay({ port: PORT, accessKey: ACCESS_KEY, media, onClientMessage: (ws, msg) => handleAppMessage(ws, msg) });
+handleAppMessage = createAppSender({ relay, media, avatarOf: (id) => avatarOf(id) });
 
 const client = new Client({
   intents: [
@@ -158,6 +161,18 @@ async function handle(message) {
     }, delay);
   } else if (ACK_EMOJI && n > 0) {
     message.react(ACK_EMOJI).catch(() => {});
+  }
+}
+
+// ---------- Envois faits directement depuis l'appli ----------
+
+async function avatarOf(discordId) {
+  if (!discordId) return null;
+  try {
+    const u = await client.users.fetch(discordId);
+    return u.displayAvatarURL({ size: 128, extension: 'png' });
+  } catch {
+    return null;
   }
 }
 

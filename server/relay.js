@@ -10,7 +10,7 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(ha, hb);
 }
 
-function createRelay({ port, accessKey, log = console.log, media = null }) {
+function createRelay({ port, accessKey, log = console.log, media = null, onClientMessage = null }) {
   if (!accessKey) throw new Error('ACCESS_KEY manquant');
 
   const server = http.createServer((req, res) => {
@@ -28,6 +28,35 @@ function createRelay({ port, accessKey, log = console.log, media = null }) {
         return res.end();
       }
       return media.serve(req, res, m[1]);
+    }
+    // Envoi d'un fichier depuis l'appli : POST /upload?key=MOT_DE_PASSE
+    if (req.method === 'POST' && /^\/upload(\?|$)/.test(req.url || '') && media) {
+      let key = '';
+      try {
+        key = new URL(req.url, 'http://localhost').searchParams.get('key') || '';
+      } catch {
+        /* rien */
+      }
+      if (!safeEqual(key, accessKey)) {
+        res.writeHead(401);
+        return res.end();
+      }
+      const type = String(req.headers['content-type'] || '').split(';')[0];
+      if (!/^(image|video|audio)\//.test(type)) {
+        res.writeHead(415);
+        return res.end();
+      }
+      media
+        .storeStream(req, type)
+        .then((id) => {
+          res.writeHead(id ? 200 : 413, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(id ? { id, local: `/media/${id}`, type } : { error: 'Fichier trop gros' }));
+        })
+        .catch(() => {
+          res.writeHead(500);
+          res.end();
+        });
+      return;
     }
     // Page de santé (utile pour les hébergeurs qui vérifient que le service tourne)
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -60,6 +89,8 @@ function createRelay({ port, accessKey, log = console.log, media = null }) {
       ws.clientName = name || 'anonyme';
       ws.discordId = uid || null; // compte Discord lié (via !lier)
       ws.linkCode = code || null; // code affiché dans l'appli pour la liaison
+      ws.cid = crypto.randomBytes(6).toString('hex'); // identifiant de l'appli pour cette connexion
+      ws.screen = null; // résolution de l'écran d'affichage { w, h }
       wss.emit('connection', ws, req);
     });
   });
@@ -112,15 +143,59 @@ function createRelay({ port, accessKey, log = console.log, media = null }) {
     return ids;
   }
 
+  function clientsInfo() {
+    const list = [];
+    wss.clients.forEach((c) => {
+      if (c.readyState === WebSocket.OPEN) {
+        list.push({ cid: c.cid, name: c.clientName, linked: !!c.discordId, screen: c.screen });
+      }
+    });
+    return list;
+  }
+
+  // Envoi à des applis précises (par identifiant de connexion)
+  function sendTo(cids, obj) {
+    const data = JSON.stringify(obj);
+    let sent = 0;
+    wss.clients.forEach((c) => {
+      if (c.readyState === WebSocket.OPEN && cids.includes(c.cid)) {
+        c.send(data);
+        sent++;
+      }
+    });
+    return sent;
+  }
+
+  let presenceTimer = null;
   function broadcastPresence() {
-    broadcast({ type: 'presence', count: countClients(), names: listClients() });
+    clearTimeout(presenceTimer);
+    presenceTimer = setTimeout(() => {
+      broadcast({ type: 'presence', count: countClients(), names: listClients(), clients: clientsInfo() });
+    }, 50);
   }
 
   wss.on('connection', (ws) => {
     ws.isAlive = true;
     ws.on('pong', () => (ws.isAlive = true));
-    ws.on('message', () => {
-      /* les clients n'envoient rien d'utile pour l'instant */
+    ws.on('message', (data) => {
+      let msg;
+      try {
+        msg = JSON.parse(data.toString());
+      } catch {
+        return;
+      }
+      if (msg.type === 'screen') {
+        const w = Math.round(Number(msg.w));
+        const h = Math.round(Number(msg.h));
+        if (w > 100 && h > 100 && w < 20000 && h < 20000) {
+          ws.screen = { w, h };
+          broadcastPresence();
+        }
+        return;
+      }
+      if (onClientMessage) {
+        Promise.resolve(onClientMessage(ws, msg)).catch((e) => log('[relais] erreur', e));
+      }
     });
     ws.on('close', () => {
       log(`[relais] ${ws.clientName} déconnecté`);
@@ -128,7 +203,7 @@ function createRelay({ port, accessKey, log = console.log, media = null }) {
     });
     ws.on('error', () => {});
     log(`[relais] ${ws.clientName} connecté`);
-    ws.send(JSON.stringify({ type: 'hello', version: 1 }));
+    ws.send(JSON.stringify({ type: 'hello', version: 2, cid: ws.cid }));
     broadcastPresence();
   });
 
@@ -157,7 +232,7 @@ function createRelay({ port, accessKey, log = console.log, media = null }) {
     return new Promise((r) => server.close(() => r()));
   }
 
-  return { listen, close, broadcast, countClients, listClients, link, linkedIds };
+  return { listen, close, broadcast, sendTo, countClients, listClients, clientsInfo, link, linkedIds };
 }
 
 module.exports = { createRelay };

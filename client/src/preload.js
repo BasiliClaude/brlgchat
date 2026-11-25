@@ -17,4 +17,11 @@ contextBridge.exposeInMainWorld('livechat', {
   resumeHotkeys: () => ipcRenderer.send('settings:hotkeys-resume'),
   onStatus: (fn) => ipcRenderer.on('settings:status', (_e, s) => fn(s)),
   onState: (fn) => ipcRenderer.on('settings:state', (_e, s) => fn(s)),
+  openSender: () => ipcRenderer.invoke('settings:open-sender'),
+
+  // Fenêtre « Envoyer »
+  sendState: () => ipcRenderer.invoke('send:state'),
+  upload: (bytes, type) => ipcRenderer.invoke('send:upload', { bytes, type }),
+  submit: (payload) => ipcRenderer.invoke('send:submit', payload),
+  onSendStatus: (fn) => ipcRenderer.on('send:status', (_e, s) => fn(s)),
 });

@@ -92,6 +92,24 @@ const { popFromMessage, resolveLink } = require('./extract');
   assert.ok(relay.linkedIds().has('999999'));
   ws3.close();
   console.log('mentions OK');
+
+  // upload depuis l'appli + écran + envoi ciblé par cid
+  let up = await fetch(`http://localhost:${port}/upload?key=secret-123`, { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: Buffer.alloc(300, 1) });
+  assert.equal(up.status, 200);
+  const upj = await up.json();
+  assert.match(upj.local, /^\/media\/[a-f0-9]{24}$/);
+  up = await fetch(`http://localhost:${port}/upload?key=secret-123`, { method: 'POST', headers: { 'Content-Type': 'text/html' }, body: 'x' });
+  assert.equal(up.status, 415);
+  up = await fetch(`http://localhost:${port}/upload?key=nope`, { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: 'x' });
+  assert.equal(up.status, 401);
+  ws.send(JSON.stringify({ type: 'screen', w: 2560, h: 1440 }));
+  await new Promise((r) => setTimeout(r, 200));
+  const me = relay.clientsInfo().find((c) => c.name === 'Basile');
+  assert.deepEqual(me.screen, { w: 2560, h: 1440 });
+  const hello = msgs.find((m) => m.type === 'hello');
+  assert.equal(hello.cid, me.cid);
+  assert.equal(relay.sendTo([me.cid], { type: 'pop', text: 'placé' }), 1);
+  console.log('envoi appli OK');
   ws.close(); await relay.close();
   console.log('relais OK');
 })().catch((e) => { console.error(e); process.exit(1); });

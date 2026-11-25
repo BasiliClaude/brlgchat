@@ -26,6 +26,20 @@ Ce n'est pas un overlay de stream : c'est une appli de bureau qui affiche le mé
 
 Sur Discord, tape `!lc` dans le salon pour voir qui est connecté.
 
+### Envoyer depuis l'appli (placement au pixel près)
+
+Clic droit sur l'icône LiveChat > **Envoyer quelque chose…** (ou le bouton en haut des paramètres). Ça ne passe pas par Discord :
+
+- **Média** : un fichier (bouton, glisser-déposer, ou Ctrl+V pour coller une image), ou un lien (gif Tenor/Klipy/Giphy, image, vidéo). Un **PNG transparent** marche très bien.
+- **Destinataires** : coche les potes connectés (toi aussi, pour tester), ou « Tout le monde ».
+- **Placement précis** : l'aperçu montre l'écran du destinataire à l'échelle, avec sa vraie résolution. Glisse pour déplacer, tire les poignées pour redimensionner, ou tape les valeurs exactes en pixels. Il y a un aimant sur le centre et les bords (maintiens Alt pour l'enlever), les flèches déplacent de 1 px (Maj : 10 px), et des boutons « Centrer », « Taille d'origine » et « Plein écran ».
+- **Sans cadre ni texte** : juste l'image, sans pseudo ni bordure. Exemple : un crosshair débile de 64×64 pile au centre de l'écran d'un pote sur Valorant.
+- **Anonyme** : cache qui l'envoie. **Durée** : de 1 à 60 s, et les vidéos peuvent être jouées en entier.
+
+Les envois placés s'affichent tout de suite, en même temps que les autres pops. Chacun peut les refuser dans ses paramètres (« Accepter les envois placés »), et le raccourci « masquer » les fait disparaître aussi.
+
+Si plusieurs destinataires ont des résolutions différentes, l'élément garde la même position et la même taille **relatives** à leur écran.
+
 ### Envoi privé avec @mention
 
 Si ton message contient des **@mentions**, il ne s'affiche **que chez les personnes mentionnées** (les @ sont retirés du texte affiché). Sans @, il part chez tout le monde.

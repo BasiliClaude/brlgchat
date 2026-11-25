@@ -138,3 +138,5 @@ button.ghost { background: transparent; }
 }
 .linked { align-self: center; }
 [hidden] { display: none !important; }
+
+.send-top { width: 100%; margin-top: 14px; }

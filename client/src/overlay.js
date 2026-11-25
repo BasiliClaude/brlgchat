@@ -16,10 +16,10 @@
     volume: 50,
     showText: true,
     mediaBase: null,
+    allowPlaced: true,
     accessKey: '',
   };
   let queue = [];
-  let current = null; // { token, el, timers: [], media }
 
   function hostAllowed(h) {
     return DISCORD_HOSTS.includes(h) || GIF_SITES.some((s) => h === s || h.endsWith('.' + s));
@@ -48,8 +48,9 @@
     document.body.className = 'pos-' + (cfg.position || 'top-right');
     document.documentElement.style.setProperty('--max-w', cfg.maxWidthPct + 'vw');
     document.documentElement.style.setProperty('--max-h', cfg.maxHeightPct + 'vh');
-    if (current && current.media && current.media.tagName === 'VIDEO' && !current.media.muted) {
-      current.media.volume = cfg.volume / 100;
+    for (const slot of [main, ...placedSlots]) {
+      const md = slot.cur && slot.cur.media;
+      if (md && md.tagName === 'VIDEO' && !md.muted) md.volume = cfg.volume / 100;
     }
   }
 
@@ -73,61 +74,97 @@
     return head;
   }
 
-  function finish(token) {
-    if (!current || current.token !== token) return;
-    const c = current;
+  // Un "emplacement" d'affichage : la file normale en a un seul (un pop à la fois) ;
+  // chaque envoi placé a le sien, et s'affiche en même temps que le reste.
+  const main = { cur: null, onDone: () => next() };
+  const placedSlots = new Set();
+
+  function anyBusy() {
+    return !!main.cur || placedSlots.size > 0;
+  }
+  function maybeIdle() {
+    if (!anyBusy() && !queue.length) api.idle();
+  }
+
+  function finish(slot, token) {
+    if (!slot.cur || slot.cur.token !== token) return;
+    const c = slot.cur;
     c.timers.forEach(clearTimeout);
     if (c.media && c.media.pause) c.media.pause();
     c.el.classList.add('out');
-    current = { token: 'leaving', timers: [] };
+    slot.cur = { token: 'leaving', timers: [] };
     setTimeout(() => {
       c.el.remove();
-      current = null;
-      next();
+      slot.cur = null;
+      slot.onDone();
     }, 150);
   }
 
-  function after(token, seconds) {
-    current.timers.push(setTimeout(() => finish(token), seconds * 1000));
+  function next() {
+    if (main.cur) return;
+    const pop = queue.shift();
+    if (!pop) return maybeIdle();
+    play(pop, main);
   }
 
-  function next() {
-    if (current) return;
-    const pop = queue.shift();
-    if (!pop) {
-      api.idle();
-      return;
-    }
+  function playPlaced(pop) {
+    const slot = { cur: null };
+    slot.onDone = () => {
+      placedSlots.delete(slot);
+      maybeIdle();
+    };
+    placedSlots.add(slot);
+    play(pop, slot);
+  }
+
+  function play(pop, slot) {
     api.busy();
     const token = Symbol('pop');
     const card = el('div', 'pop');
     const block = el('div', 'block');
     card.appendChild(block);
-    current = { token, el: card, timers: [], media: null };
+    slot.cur = { token, el: card, timers: [], media: null };
+    const done = () => finish(slot, token);
+    const after = (seconds) => slot.cur.timers.push(setTimeout(done, seconds * 1000));
 
     const m = pop.media;
     const url = m && mediaUrl(m, pop.test);
-    const withText = cfg.showText;
+    // Envoi "placé" depuis l'appli : position et taille choisies par l'envoyeur
+    const placed = !!pop.layout && cfg.allowPlaced !== false;
+    const bare = placed && !!pop.bare;
+    const withText = cfg.showText && !bare;
+    const withHead = withText && !pop.anonymous;
+    const imageSec = pop.fromApp ? pop.durationSec || IMAGE_SEC : IMAGE_SEC;
+    const textSec = pop.fromApp ? pop.durationSec || TEXT_ONLY_SEC : TEXT_ONLY_SEC;
+    if (placed) {
+      card.classList.add('placed');
+      if (bare) card.classList.add('bare');
+      const { x, y, w, h } = pop.layout;
+      card.style.left = x * 100 + 'vw';
+      card.style.top = y * 100 + 'vh';
+      card.style.width = w * 100 + 'vw';
+      card.style.height = h * 100 + 'vh';
+    }
 
     const show = (mediaEl) => {
-      if (!current || current.token !== token) return;
-      if (withText) block.appendChild(buildHead(pop));
+      if (!slot.cur || slot.cur.token !== token) return;
+      if (withHead) (placed ? card : block).appendChild(buildHead(pop));
       if (mediaEl) block.appendChild(mediaEl);
-      if (withText && pop.text) card.appendChild(el('div', 'text outlined', pop.text));
+      if (withText && pop.text) (placed && !mediaEl ? block : card).appendChild(el('div', 'text outlined', pop.text));
       stage.appendChild(card);
     };
     // Si le média ne charge pas à temps, on passe au suivant
-    current.timers.push(
+    slot.cur.timers.push(
       setTimeout(() => {
-        if (!card.isConnected) finish(token);
+        if (!card.isConnected) done();
       }, 15000)
     );
 
     if (!m || !url) {
-      if (!pop.text || !withText) return finish(token);
+      if (!pop.text || !withText) return done();
       card.classList.add('text-only');
       show(null);
-      after(token, TEXT_ONLY_SEC);
+      after(textSec);
       return;
     }
 
@@ -136,11 +173,11 @@
       img.decoding = 'async';
       img.onload = () => {
         show(img);
-        after(token, IMAGE_SEC);
+        after(imageSec);
       };
-      img.onerror = () => finish(token);
+      img.onerror = done;
       img.src = url;
-      current.media = img;
+      slot.cur.media = img;
       return;
     }
 
@@ -150,6 +187,7 @@
       v.autoplay = true;
       v.playsInline = true;
       v.preload = 'auto';
+      const playFull = !m.gif && (!pop.fromApp || pop.playFull !== false);
       if (m.gif) {
         // Les "gifs" Tenor/Klipy/Giphy sont des petites vidéos muettes en boucle
         v.muted = true;
@@ -169,26 +207,32 @@
           v.play().catch(() => {});
         });
         // gif : 5 s ; vidéo / son : jusqu'à la fin (onended)
-        after(token, m.gif ? IMAGE_SEC : VIDEO_SAFETY_SEC);
+        after(playFull ? VIDEO_SAFETY_SEC : imageSec);
       };
-      v.onended = () => finish(token);
-      v.onerror = () => finish(token);
+      v.onended = () => (playFull ? done() : v.play().catch(() => {}));
+      v.onerror = done;
       v.src = url;
-      current.media = v;
+      slot.cur.media = v;
       return;
     }
 
-    finish(token);
+    done();
+  }
+
+  function clearSlot(slot) {
+    if (slot.cur && slot.cur.el) {
+      slot.cur.timers.forEach(clearTimeout);
+      if (slot.cur.media && slot.cur.media.pause) slot.cur.media.pause();
+      slot.cur.el.remove();
+    }
+    slot.cur = null;
   }
 
   function clearAll() {
     queue = [];
-    if (current && current.el) {
-      current.timers.forEach(clearTimeout);
-      if (current.media && current.media.pause) current.media.pause();
-      current.el.remove();
-    }
-    current = null;
+    clearSlot(main);
+    placedSlots.forEach(clearSlot);
+    placedSlots.clear();
     stage.textContent = '';
     api.idle();
   }
@@ -198,6 +242,8 @@
     applyCfg();
   });
   api.onPop((pop) => {
+    // les envois placés s'affichent tout de suite, sans attendre la file
+    if (pop.layout && cfg.allowPlaced !== false) return playPlaced(pop);
     if (queue.length >= MAX_QUEUE) queue.shift();
     queue.push(pop);
     next();

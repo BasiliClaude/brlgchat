@@ -45,6 +45,7 @@
     $('enabled').checked = set.enabled;
     $('enabledLabel').textContent = set.enabled ? 'ON' : 'OFF';
     $('showText').checked = set.showText;
+    $('allowPlaced').checked = set.allowPlaced !== false;
     $('autoStart').checked = set.autoStart;
     for (const [k, fmt] of Object.entries(RANGES)) {
       $(k).value = set[k];
@@ -90,6 +91,8 @@
 
   $('enabled').addEventListener('change', (e) => save({ enabled: e.target.checked }, e.target.checked ? 'Réception activée' : 'Réception désactivée'));
   $('showText').addEventListener('change', (e) => save({ showText: e.target.checked }));
+  $('allowPlaced').addEventListener('change', (e) => save({ allowPlaced: e.target.checked }));
+  $('openSender').addEventListener('click', () => api.openSender());
   $('autoStart').addEventListener('change', (e) => save({ autoStart: e.target.checked }));
   $('displayId').addEventListener('change', (e) => save({ displayId: e.target.value || null }, 'Écran changé'));
   $('copyLink').addEventListener('click', () => {

@@ -27,7 +27,7 @@ class Connection extends EventEmitter {
     this.ws = null;
     this.timer = null;
     this.delay = 2000;
-    this.status = { state: 'off', count: 0, names: [], error: '' };
+    this.status = { state: 'off', count: 0, names: [], clients: [], cid: null, error: '' };
   }
 
   setStatus(patch) {
@@ -71,7 +71,11 @@ class Connection extends EventEmitter {
       } catch {
         return;
       }
-      if (msg.type === 'presence') this.setStatus({ count: msg.count || 0, names: msg.names || [] });
+      if (msg.type === 'hello') {
+        this.setStatus({ cid: msg.cid || null });
+        this.emit('open');
+      } else if (msg.type === 'presence') this.setStatus({ count: msg.count || 0, names: msg.names || [], clients: msg.clients || [] });
+      else if (msg.type === 'sent' || msg.type === 'send-error') this.emit('reply', msg);
       else if (msg.type === 'pop') this.emit('pop', msg);
       else if (msg.type === 'linked') this.emit('linked', msg);
     });
@@ -87,13 +91,21 @@ class Connection extends EventEmitter {
       clearTimeout(alive);
       if (this.ws !== ws) return; // déconnexion volontaire
       this.ws = null;
-      this.setStatus({ state: 'connecting', count: 0, names: [] });
+      this.setStatus({ state: 'connecting', count: 0, names: [], clients: [], cid: null });
       // mauvais mot de passe : inutile d'insister souvent
       const wait = this.authFailed ? 60000 : this.delay;
       this.authFailed = false;
       this.delay = Math.min(this.delay * 2, 30000);
       this.timer = setTimeout(() => this.open(url), wait);
     });
+  }
+
+  send(obj) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(obj));
+      return true;
+    }
+    return false;
   }
 
   disconnect() {
@@ -107,7 +119,7 @@ class Connection extends EventEmitter {
         /* rien */
       }
     }
-    this.setStatus({ state: 'off', count: 0, names: [] });
+    this.setStatus({ state: 'off', count: 0, names: [], clients: [], cid: null });
   }
 }
 

@@ -65,11 +65,21 @@ function createOverlay() {
 }
 
 function placeOverlay() {
+  reportScreen();
   if (!overlay) return;
   const d = targetDisplay();
   overlay.setBounds(d.bounds);
   sendOverlaySettings();
 }
+
+// Indique au serveur la résolution de l'écran d'affichage (pour l'éditeur des amis)
+function screenOf(d) {
+  return { w: Math.round(d.bounds.width * d.scaleFactor), h: Math.round(d.bounds.height * d.scaleFactor) };
+}
+function reportScreen() {
+  conn.send({ type: 'screen', ...screenOf(targetDisplay()) });
+}
+conn.on('open', reportScreen);
 
 function sendOverlaySettings() {
   if (!overlay) return;
@@ -82,6 +92,7 @@ function sendOverlaySettings() {
     maxVideoSec: s.maxVideoSec,
     volume: s.volume,
     showText: s.showText,
+    allowPlaced: s.allowPlaced,
     mediaBase: mediaBase(s.serverUrl),
     accessKey: s.accessKey,
   });
@@ -129,6 +140,7 @@ conn.on('pop', (pop) => {
   showPop(pop);
 });
 conn.on('status', () => {
+  if (senderWin) senderWin.webContents.send('send:status', senderState());
   refreshTray();
   if (settingsWin) settingsWin.webContents.send('settings:status', statusForUi());
 });
@@ -221,6 +233,7 @@ function refreshTray() {
       { label: 'Masquer ce qui s’affiche', accelerator: s.hotkeyHide || undefined, click: hideNow },
       { label: 'Tester l’affichage', click: testPop },
       { type: 'separator' },
+      { label: 'Envoyer quelque chose…', click: openSender },
       { label: 'Paramètres…', click: openSettings },
       { label: 'Quitter LiveChat', click: () => app.quit() },
     ])
@@ -304,6 +317,96 @@ ipcMain.handle('settings:save', (_e, patch) => {
 });
 
 ipcMain.handle('settings:test', () => testPop());
+ipcMain.handle('settings:open-sender', () => openSender());
+
+// ---------- Fenêtre « Envoyer » (envoi depuis l'appli, placement précis) ----------
+
+let senderWin = null;
+
+function senderState() {
+  const st = conn.status;
+  return {
+    connected: st.state === 'connected',
+    cid: st.cid,
+    clients: st.clients || [],
+    myScreen: screenOf(targetDisplay()),
+    nickname: store.get().nickname,
+  };
+}
+
+function openSender() {
+  if (senderWin) {
+    senderWin.show();
+    senderWin.focus();
+    return;
+  }
+  senderWin = new BrowserWindow({
+    width: 1180,
+    height: 820,
+    minWidth: 900,
+    minHeight: 620,
+    title: 'LiveChat - Envoyer',
+    icon: path.join(ASSETS, 'icon.png'),
+    autoHideMenuBar: true,
+    backgroundColor: '#17151f',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  senderWin.setMenu(null);
+  senderWin.loadFile(path.join(__dirname, 'send.html'));
+  senderWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  senderWin.webContents.on('will-navigate', (e) => e.preventDefault());
+  senderWin.on('closed', () => (senderWin = null));
+}
+
+ipcMain.handle('send:state', () => senderState());
+
+// Envoie le fichier choisi au serveur ; renvoie { local: '/media/…' }
+ipcMain.handle('send:upload', async (_e, { bytes, type }) => {
+  const s = store.get();
+  const base = mediaBase(s.serverUrl);
+  if (!base) return { error: 'Serveur non configuré' };
+  if (!/^(image|video|audio)\//.test(type || '')) return { error: 'Format non pris en charge' };
+  try {
+    const res = await fetch(`${base}/upload?key=${encodeURIComponent(s.accessKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': type },
+      body: Buffer.from(bytes),
+    });
+    if (res.status === 413) return { error: 'Fichier trop gros pour le serveur' };
+    if (!res.ok) return { error: `Erreur serveur (${res.status})` };
+    return await res.json();
+  } catch (e) {
+    return { error: 'Envoi impossible : ' + e.message };
+  }
+});
+
+let sendRef = 0;
+ipcMain.handle('send:submit', (_e, payload) => {
+  const ref = ++sendRef;
+  return new Promise((resolve) => {
+    const onReply = (msg) => {
+      if (msg.ref !== ref) return;
+      conn.off('reply', onReply);
+      clearTimeout(t);
+      resolve(msg.type === 'sent' ? { ok: true, n: msg.n } : { error: msg.error || 'Erreur' });
+    };
+    const t = setTimeout(() => {
+      conn.off('reply', onReply);
+      resolve({ error: 'Pas de réponse du serveur' });
+    }, 60000);
+    conn.on('reply', onReply);
+    if (!conn.send({ ...payload, type: 'send', ref })) {
+      conn.off('reply', onReply);
+      clearTimeout(t);
+      resolve({ error: 'Pas connecté au serveur' });
+    }
+  });
+});
 ipcMain.handle('settings:identify', () => identifyDisplays());
 // Pendant qu'on enregistre un nouveau raccourci, on coupe les raccourcis globaux
 ipcMain.on('settings:hotkeys-pause', () => globalShortcut.unregisterAll());
@@ -393,7 +496,8 @@ app.whenReady().then(() => {
   screen.on('display-metrics-changed', placeOverlay);
 
   // LIVECHAT_DEMO=1 : affiche un pop de test au lancement (pratique pour vérifier l'installation)
-  if (process.env.LIVECHAT_DEMO) setTimeout(testPop, 1500);
+  if (process.env.LIVECHAT_DEMO === 'send') openSender();
+  else if (process.env.LIVECHAT_DEMO) setTimeout(testPop, 1500);
 
   const s = store.get();
   if (!s.serverUrl || !s.accessKey) {

@@ -110,7 +110,7 @@ body.pos-bottom-right #stage  { align-items: flex-end;   justify-content: flex-e
   min-width: 80px;
   object-fit: contain;
   border-radius: 22px;
-  background: #000;
+  background: transparent;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 
@@ -130,3 +130,32 @@ body.pos-bottom-right #stage  { align-items: flex-end;   justify-content: flex-e
   -webkit-text-stroke: 0;
   margin-top: 18px;
 }
+
+video.media { background: #000; }
+
+/* Envoi placé : position et taille exactes choisies par l'envoyeur */
+.pop.placed {
+  position: absolute;
+  max-width: none;
+  display: block;
+}
+.pop.placed .block { width: 100%; height: 100%; align-items: center; justify-content: center; }
+.pop.placed .media {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  min-width: 0;
+  object-fit: fill;
+}
+.pop.placed > .head { position: absolute; bottom: 100%; left: 0; margin: 0 0 6px -8px; }
+.pop.placed > .text {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 80vw;
+}
+.pop.placed .block > .text { margin: 0; }
+.pop.placed.bare .media { border-radius: 0; box-shadow: none; background: transparent; }

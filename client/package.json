@@ -1,7 +1,7 @@
 {
   "name": "livechat",
   "productName": "LiveChat",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "Fait apparaître à l'écran les images, gifs et vidéos postés par tes potes sur Discord",
   "main": "src/main.js",

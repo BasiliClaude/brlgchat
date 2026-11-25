@@ -60,6 +60,30 @@ async function store(url, { fetchImpl = globalThis.fetch, timeoutMs = 60000 } = 
   }
 }
 
+// Enregistre un flux (fichier envoyé depuis l'appli)
+async function storeStream(stream, type) {
+  const id = crypto.randomBytes(12).toString('hex');
+  const file = path.join(DIR, id);
+  let size = 0;
+  try {
+    stream.on('data', (c) => {
+      size += c.length;
+      if (size > MAX_BYTES) stream.destroy(new Error('trop gros'));
+    });
+    await pipeline(stream, fs.createWriteStream(file));
+    entries.set(id, { file, type, size, at: Date.now() });
+    return id;
+  } catch {
+    fsp.rm(file, { force: true }).catch(() => {});
+    return null;
+  }
+}
+
+function info(id) {
+  const e = entries.get(id);
+  return e ? { type: e.type, size: e.size } : null;
+}
+
 // Sert /media/<id> (avec prise en charge des "Range" pour les vidéos)
 function serve(req, res, id) {
   const e = entries.get(id);
@@ -92,4 +116,4 @@ function serve(req, res, id) {
   fs.createReadStream(e.file).pipe(res);
 }
 
-module.exports = { init, store, serve, cleanup };
+module.exports = { init, store, storeStream, info, serve, cleanup };
