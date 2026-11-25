@@ -61,6 +61,11 @@
       if (!b.classList.contains('recording')) b.textContent = pretty(set[b.dataset.key]) || 'Aucun';
     });
     document.querySelectorAll('[data-err]').forEach((e) => (e.textContent = (s.hotkeyErrors || {})[e.dataset.err] || ''));
+    const linked = !!set.discordId;
+    $('linkOn').hidden = !linked;
+    $('linkOff').hidden = linked;
+    $('linkedName').textContent = set.discordName || set.discordId;
+    $('linkCmd').textContent = s.status.state === 'connected' ? `!lier ${s.linkCode}` : 'Connecte-toi d’abord au serveur';
     renderStatus(s.status);
   }
 
@@ -87,6 +92,11 @@
   $('showText').addEventListener('change', (e) => save({ showText: e.target.checked }));
   $('autoStart').addEventListener('change', (e) => save({ autoStart: e.target.checked }));
   $('displayId').addEventListener('change', (e) => save({ displayId: e.target.value || null }, 'Écran changé'));
+  $('copyLink').addEventListener('click', () => {
+    if (!state || state.status.state !== 'connected') return;
+    navigator.clipboard.writeText(`!lier ${state.linkCode}`).then(() => toast('Copié ! Colle-le dans le salon Discord'), () => {});
+  });
+  $('unlink').addEventListener('click', () => save({ discordId: '', discordName: '' }, 'Compte délié'));
   $('identify').addEventListener('click', () => api.identify());
   $('test').addEventListener('click', () => api.test());
 
@@ -185,8 +195,9 @@
   });
 
   api.onStatus((st) => {
-    if (state) state.status = st;
-    renderStatus(st);
+    if (!state) return;
+    state.status = st;
+    render(state);
   });
   api.onState(render);
   api.getState().then(render);

@@ -39,10 +39,14 @@ function createRelay({ port, accessKey, log = console.log, media = null }) {
   server.on('upgrade', (req, socket, head) => {
     let key = '';
     let name = '';
+    let uid = '';
+    let code = '';
     try {
       const url = new URL(req.url, 'http://localhost');
       key = url.searchParams.get('key') || '';
       name = (url.searchParams.get('name') || '').slice(0, 32);
+      uid = /^\d{5,25}$/.test(url.searchParams.get('uid') || '') ? url.searchParams.get('uid') : '';
+      code = /^\d{6}$/.test(url.searchParams.get('code') || '') ? url.searchParams.get('code') : '';
     } catch {
       /* URL invalide */
     }
@@ -54,6 +58,8 @@ function createRelay({ port, accessKey, log = console.log, media = null }) {
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
       ws.clientName = name || 'anonyme';
+      ws.discordId = uid || null; // compte Discord lié (via !lier)
+      ws.linkCode = code || null; // code affiché dans l'appli pour la liaison
       wss.emit('connection', ws, req);
     });
   });
@@ -74,16 +80,36 @@ function createRelay({ port, accessKey, log = console.log, media = null }) {
     return names;
   }
 
-  function broadcast(obj) {
+  // onlyIds : si fourni, n'envoie qu'aux applis liées à ces comptes Discord
+  function broadcast(obj, onlyIds = null) {
     const data = JSON.stringify(obj);
     let sent = 0;
     wss.clients.forEach((c) => {
-      if (c.readyState === WebSocket.OPEN) {
+      if (c.readyState === WebSocket.OPEN && (!onlyIds || (c.discordId && onlyIds.includes(c.discordId)))) {
         c.send(data);
         sent++;
       }
     });
     return sent;
+  }
+
+  // Liaison : l'appli qui affiche ce code est rattachée au compte Discord
+  function link(code, discordId, discordName) {
+    let n = 0;
+    wss.clients.forEach((c) => {
+      if (c.readyState === WebSocket.OPEN && c.linkCode && c.linkCode === code) {
+        c.discordId = discordId;
+        c.send(JSON.stringify({ type: 'linked', id: discordId, name: discordName }));
+        n++;
+      }
+    });
+    return n;
+  }
+
+  function linkedIds() {
+    const ids = new Set();
+    wss.clients.forEach((c) => c.readyState === WebSocket.OPEN && c.discordId && ids.add(c.discordId));
+    return ids;
   }
 
   function broadcastPresence() {
@@ -131,7 +157,7 @@ function createRelay({ port, accessKey, log = console.log, media = null }) {
     return new Promise((r) => server.close(() => r()));
   }
 
-  return { listen, close, broadcast, countClients, listClients };
+  return { listen, close, broadcast, countClients, listClients, link, linkedIds };
 }
 
 module.exports = { createRelay };

@@ -2,7 +2,7 @@
 const { EventEmitter } = require('events');
 const WebSocket = require('ws');
 
-function buildUrl(serverUrl, accessKey, nickname) {
+function buildUrl(serverUrl, accessKey, nickname, discordId, linkCode) {
   let s = String(serverUrl || '').trim();
   if (!s) return null;
   if (!/^[a-z]+:\/\//i.test(s)) s = 'wss://' + s;
@@ -16,6 +16,8 @@ function buildUrl(serverUrl, accessKey, nickname) {
   if (!['ws:', 'wss:'].includes(url.protocol)) return null;
   url.searchParams.set('key', accessKey || '');
   if (nickname) url.searchParams.set('name', nickname);
+  if (discordId) url.searchParams.set('uid', discordId);
+  if (linkCode) url.searchParams.set('code', linkCode);
   return url.toString();
 }
 
@@ -33,9 +35,9 @@ class Connection extends EventEmitter {
     this.emit('status', this.status);
   }
 
-  connect({ serverUrl, accessKey, nickname }) {
+  connect({ serverUrl, accessKey, nickname, discordId, linkCode }) {
     this.disconnect();
-    const url = buildUrl(serverUrl, accessKey, nickname);
+    const url = buildUrl(serverUrl, accessKey, nickname, discordId, linkCode);
     if (!url) {
       this.setStatus({ state: 'off', count: 0, names: [], error: serverUrl ? 'Adresse du serveur invalide' : 'Serveur non configuré' });
       return;
@@ -71,6 +73,7 @@ class Connection extends EventEmitter {
       }
       if (msg.type === 'presence') this.setStatus({ count: msg.count || 0, names: msg.names || [] });
       else if (msg.type === 'pop') this.emit('pop', msg);
+      else if (msg.type === 'linked') this.emit('linked', msg);
     });
     ws.on('unexpected-response', (_req, res) => {
       const err = res.statusCode === 401 ? 'Mot de passe refusé par le serveur' : `Erreur serveur (${res.statusCode})`;

@@ -133,9 +133,20 @@ conn.on('status', () => {
   if (settingsWin) settingsWin.webContents.send('settings:status', statusForUi());
 });
 
+// Code à taper sur Discord (!lier 123456) pour lier l'appli à son compte
+const linkCode = String(require('crypto').randomInt(100000, 1000000));
+
+conn.on('linked', (msg) => {
+  store.set({ discordId: String(msg.id || ''), discordName: String(msg.name || '').slice(0, 64) });
+  if (settingsWin) settingsWin.webContents.send('settings:state', fullState());
+  if (Notification.isSupported()) {
+    new Notification({ title: 'LiveChat', body: `Appli liée au compte Discord ${msg.name}.`, silent: true }).show();
+  }
+});
+
 function applyConnection() {
   const s = store.get();
-  if (s.enabled) conn.connect(s);
+  if (s.enabled) conn.connect({ ...s, linkCode });
   else conn.disconnect();
 }
 
@@ -237,7 +248,7 @@ function displaysForUi() {
 }
 
 function fullState() {
-  return { settings: store.get(), displays: displaysForUi(), status: statusForUi(), hotkeyErrors, platform: process.platform };
+  return { settings: store.get(), displays: displaysForUi(), status: statusForUi(), hotkeyErrors, platform: process.platform, linkCode };
 }
 
 function openSettings() {
@@ -279,7 +290,7 @@ ipcMain.handle('settings:get', () => fullState());
 ipcMain.handle('settings:save', (_e, patch) => {
   const before = store.get();
   const s = store.set(patch);
-  if (s.serverUrl !== before.serverUrl || s.accessKey !== before.accessKey || s.nickname !== before.nickname || s.enabled !== before.enabled) {
+  if (s.serverUrl !== before.serverUrl || s.accessKey !== before.accessKey || s.nickname !== before.nickname || s.enabled !== before.enabled || s.discordId !== before.discordId) {
     applyConnection();
   }
   if (s.displayId !== before.displayId) placeOverlay();

@@ -26,6 +26,14 @@ Ce n'est pas un overlay de stream : c'est une appli de bureau qui affiche le mé
 
 Sur Discord, tape `!lc` dans le salon pour voir qui est connecté.
 
+### Envoi privé avec @mention
+
+Si ton message contient des **@mentions**, il ne s'affiche **que chez les personnes mentionnées** (les @ sont retirés du texte affiché). Sans @, il part chez tout le monde.
+
+Pour ça, chacun lie une fois son appli à son compte Discord : dans les paramètres de l'appli, section **Compte Discord**, copie la commande affichée (ex : `!lier 482913`) et colle-la dans le salon live chat. Le bot répond ✅ puis efface la commande. C'est retenu pour la suite.
+
+Si personne parmi les mentionnés n'a l'appli ouverte et liée, le bot te prévient avec un petit message qui s'efface tout seul.
+
 ## Comment ça marche
 
 ```

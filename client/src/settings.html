@@ -41,6 +41,21 @@
     </section>
 
     <section>
+      <h2>Compte Discord</h2>
+      <div id="linkOff">
+        <p class="hint">Pour recevoir les messages où on te <b>@mentionne</b> (envoi privé), tape une fois dans le salon live chat :</p>
+        <div class="row">
+          <code id="linkCmd" class="cmd"></code>
+          <button type="button" id="copyLink" class="ghost">Copier</button>
+        </div>
+      </div>
+      <div id="linkOn" class="row" hidden>
+        <span class="linked">✅ Lié à <b id="linkedName"></b></span>
+        <button type="button" id="unlink" class="ghost">Délier</button>
+      </div>
+    </section>
+
+    <section>
       <h2>Affichage</h2>
       <label class="field">
         <span>Écran</span>

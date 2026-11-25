@@ -68,6 +68,30 @@ const { popFromMessage, resolveLink } = require('./extract');
   r = await fetch(`http://localhost:${port}/media/${mid}?key=faux`);
   assert.equal(r.status, 401);
   console.log('médias OK');
+  // envoi ciblé + liaison
+  const msgs2 = [];
+  const ws2 = new WebSocket(`ws://localhost:${port}/?key=secret-123&name=Tom&code=123456`);
+  ws2.on('message', (d) => msgs2.push(JSON.parse(d)));
+  await new Promise((r) => ws2.on('open', r));
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(relay.broadcast({ type: 'pop', text: 'privé' }, ['999999']), 0);
+  assert.equal(relay.link('000000', '999999', 'Tom'), 0);
+  assert.equal(relay.link('123456', '999999', 'Tom'), 1);
+  await new Promise((r) => setTimeout(r, 100));
+  assert.ok(msgs2.some((m) => m.type === 'linked' && m.id === '999999'));
+  const before = msgs.length;
+  assert.equal(relay.broadcast({ type: 'pop', text: 'privé' }, ['999999']), 1);
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(msgs.length, before); // Basile ne l'a pas reçu
+  assert.equal(msgs2.filter((m) => m.type === 'pop').length, 1);
+  ws2.close();
+  // reconnexion avec uid déjà lié
+  const ws3 = new WebSocket(`ws://localhost:${port}/?key=secret-123&name=Tom&uid=999999`);
+  await new Promise((r) => ws3.on('open', r));
+  await new Promise((r) => setTimeout(r, 100));
+  assert.ok(relay.linkedIds().has('999999'));
+  ws3.close();
+  console.log('mentions OK');
   ws.close(); await relay.close();
   console.log('relais OK');
 })().catch((e) => { console.error(e); process.exit(1); });

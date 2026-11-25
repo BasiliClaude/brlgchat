@@ -18,6 +18,8 @@ const DEFAULTS = {
   hotkeyHide: 'Alt+Shift+H', // masquer ce qui s'affiche (et vider la file)
   hotkeyToggle: 'Alt+Shift+L', // ON/OFF de la réception
   autoStart: false,
+  discordId: '', // compte Discord lié avec !lier (pour les messages @mentionnés)
+  discordName: '',
 };
 
 class SettingsStore {

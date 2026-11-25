@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, Events, cleanContent } = require('discord.js');
 const { createRelay } = require('./relay');
 const media = require('./media-cache');
 const { popFromMessage, firstLink, resolveLink, GIF_SITES } = require('./extract');
@@ -57,6 +57,26 @@ async function handle(message) {
     return;
   }
 
+  // Liaison de l'appli : "!lier 123456" (code affiché dans les paramètres de l'appli)
+  const linkCmd = /^!(?:lier|link)\s+(\d{6})\s*$/i.exec(message.content || '');
+  if (linkCmd) {
+    const name = message.member?.displayName || message.author.globalName || message.author.username;
+    const n = relay.link(linkCmd[1], message.author.id, name);
+    const reply = await message
+      .reply(n ? `✅ Appli liée à ton compte, ${name}. Tu recevras les messages où on te @mentionne.` : '❌ Code inconnu. Vérifie que ton appli est ouverte et connectée, puis recopie le code affiché dans les paramètres.')
+      .catch(() => null);
+    setTimeout(() => {
+      message.delete().catch(() => {});
+      reply?.delete().catch(() => {});
+    }, 8000);
+    return;
+  }
+
+  // @mentions de personnes : le message ne part qu'à elles
+  const targets = [...new Set([...(message.content || '').matchAll(/<@!?(\d+)>/g)].map((m) => m[1]))].filter(
+    (id) => id !== client.user.id
+  );
+
   let pop = popFromMessage(message, { allowTextOnly: ALLOW_TEXT_ONLY });
 
   // Un lien (Tenor, Klipy, Giphy…) : Discord ajoute l'aperçu (embed) un peu après.
@@ -98,8 +118,35 @@ async function handle(message) {
     }
   }
 
-  const n = relay.broadcast(pop);
-  console.log(`[bot] ${pop.author.name}: ${pop.media ? pop.media.kind + (cached ? ' (copié)' : '') : 'texte'} -> ${n} ami(s)`);
+  if (targets.length) {
+    // On retire les @mentions du texte affiché
+    pop.text = cleanContent((message.content || '').replace(/<@!?\d+>/g, ''), message.channel)
+      .replace(pop.media && !message.attachments?.size ? /<?https?:\/\/\S+>?/g : /$^/, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+      .slice(0, 300);
+    pop.private = true;
+    if (!pop.media && !pop.text) return; // juste "@quelqu'un" sans rien d'autre
+  }
+
+  const n = relay.broadcast(pop, targets.length ? targets : null);
+  console.log(
+    `[bot] ${pop.author.name}: ${pop.media ? pop.media.kind + (cached ? ' (copié)' : '') : 'texte'} -> ${n} ami(s)` +
+      (targets.length ? ` (privé : ${targets.length} mention(s))` : '')
+  );
+
+  // Personne de mentionné n'a reçu : on prévient l'envoyeur (message qui s'efface)
+  if (targets.length && n === 0) {
+    const linked = relay.linkedIds();
+    const missing = targets.filter((id) => !linked.has(id)).map((id) => `<@${id}>`);
+    message.channel
+      .send({
+        content: `⚠️ ${message.author}, personne n'a reçu ton message : ${missing.join(', ')} n'a pas l'appli ouverte ou pas liée (\`!lier CODE\`).`,
+        allowedMentions: { users: [message.author.id] },
+      })
+      .then((w) => setTimeout(() => w.delete().catch(() => {}), 10000))
+      .catch(() => {});
+  }
 
   if (DELETE_MESSAGES) {
     // Si la copie a échoué, on laisse le temps aux applis de charger le lien Discord
