@@ -147,12 +147,17 @@ L'adresse sera `ws://localhost:8080` (pour toi seulement).
 
 ### Récupérer l'installeur
 
-Les installeurs sont construits automatiquement par GitHub :
+Tous les installeurs sont sur la page **Releases** du dépôt : https://github.com/BasiliClaude/brlgchat/releases/latest (le dépôt doit être public pour que tes potes y aient accès).
 
-1. Onglet **Actions** du dépôt > **Construire l'appli** > **Run workflow**. Au bout de 5 à 10 minutes, les fichiers sont dans la section *Artifacts* en bas de la page du run.
-2. Ou crée un tag de version (`git tag v1.0.0 && git push --tags`) : une **Release** apparaît avec les installeurs.
+### Publier une mise à jour (un seul bouton)
 
-> Le dépôt est privé, donc tes potes ne peuvent pas télécharger depuis GitHub. Le plus simple : envoie-leur le fichier `LiveChat-Setup-x.y.z.exe` directement sur Discord. (Rien de secret n'est stocké dans le code, tu peux aussi rendre le dépôt public si tu préfères.)
+1. Onglet **Actions** du dépôt > **Publier une mise à jour** > **Run workflow** (tu peux écrire ce qui change, c'est facultatif) > **Run workflow**.
+2. Le numéro de version monte tout seul (1.5.0 → 1.5.1), les installeurs Windows / Mac / Linux sont construits et publiés dans Releases (10 à 15 minutes).
+3. C'est tout : les applis déjà installées le voient (au démarrage puis toutes les 3 h, ou bouton « Rechercher une mise à jour » dans Réglages), téléchargent la mise à jour en arrière-plan et affichent **« Mise à jour prête, clique pour redémarrer »**. Si on ne clique pas, elle s'installe à la prochaine fermeture de LiveChat.
+
+Sur **Mac**, Apple bloque les mises à jour automatiques des applis non signées : l'appli prévient qu'une nouvelle version existe et ouvre la page de téléchargement.
+
+Pour tester une branche sans rien publier : **Actions** > **Construire l'appli** > **Run workflow**, les fichiers sont dans *Artifacts* en bas de la page du run.
 
 ### Installer
 

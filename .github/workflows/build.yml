@@ -1,11 +1,10 @@
 name: Construire l'appli
 
-# Pousse un tag (ex : git tag v1.0.0 && git push --tags) pour créer une release
-# avec les installeurs Windows / macOS / Linux. Le bouton "Run workflow" de
-# l'onglet Actions construit aussi les installeurs (téléchargeables en "artifacts").
+# Construit les installeurs pour tester une branche (téléchargeables en "artifacts")
+# et lance les tests du serveur. Pour publier une mise à jour aux amis, utilise
+# plutôt « Publier une mise à jour » (release.yml).
 on:
-  push:
-    tags: ["v*"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -38,13 +37,6 @@ jobs:
             client/dist/*.dmg
             client/dist/*.AppImage
           if-no-files-found: ignore
-      - if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            client/dist/*.exe
-            client/dist/*.dmg
-            client/dist/*.AppImage
   server-tests:
     runs-on: ubuntu-latest
     defaults:

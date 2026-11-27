@@ -14,6 +14,7 @@
     "dist:linux": "electron-builder --linux"
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -44,7 +45,8 @@
     },
     "mac": {
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
       "icon": "assets/icon.png",
       "category": "public.app-category.social-networking",
@@ -58,6 +60,13 @@
       "category": "Network",
       "artifactName": "LiveChat-${version}.${ext}"
     },
-    "publish": null
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "BasiliClaude",
+        "repo": "brlgchat",
+        "releaseType": "draft"
+      }
+    ]
   }
 }
