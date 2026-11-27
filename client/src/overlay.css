@@ -162,3 +162,7 @@ img.media { box-shadow: none; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45)
 }
 .pop.placed .block > .text { margin: 0; }
 .pop.placed.bare .media { border-radius: 0; box-shadow: none; background: transparent; }
+
+/* Mode LITE : pas d'animation, pas d'ombres ni de filtres (moins de travail graphique) */
+body.lite .pop, body.lite .pop.out { animation: none; }
+body.lite .media, body.lite img.media, body.lite .avatar { box-shadow: none; filter: none; }

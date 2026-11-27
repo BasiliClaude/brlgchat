@@ -18,6 +18,7 @@ const DEFAULTS = {
   hotkeyHide: 'Alt+Shift+H', // masquer ce qui s'affiche (et vider la file)
   hotkeyToggle: 'Alt+Shift+L', // ON/OFF de la réception
   autoStart: false,
+  lite: false, // mode LITE : moins de mémoire et de processeur en arrière-plan
   allowPlaced: true, // accepter les envois placés (position/taille choisies par l'envoyeur)
   discordId: '', // compte Discord lié avec !lier (pour les messages @mentionnés)
   discordName: '',

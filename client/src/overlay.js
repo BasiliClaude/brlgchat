@@ -45,7 +45,7 @@
   }
 
   function applyCfg() {
-    document.body.className = 'pos-' + (cfg.position || 'top-right');
+    document.body.className = 'pos-' + (cfg.position || 'top-right') + (cfg.lite ? ' lite' : '');
     document.documentElement.style.setProperty('--max-w', cfg.maxWidthPct + 'vw');
     document.documentElement.style.setProperty('--max-h', cfg.maxHeightPct + 'vh');
     for (const slot of [main, ...placedSlots]) {
@@ -91,10 +91,18 @@
     const c = slot.cur;
     c.timers.forEach(clearTimeout);
     if (c.media && c.media.pause) c.media.pause();
+    if (cfg.lite) {
+      // pas d'animation de sortie
+      c.el.remove();
+      release(c.media);
+      slot.cur = null;
+      return slot.onDone();
+    }
     c.el.classList.add('out');
     slot.cur = { token: 'leaving', timers: [] };
     setTimeout(() => {
       c.el.remove();
+      release(c.media);
       slot.cur = null;
       slot.onDone();
     }, 150);
@@ -219,10 +227,22 @@
     done();
   }
 
+  // Libère le décodeur vidéo / l'image tout de suite (au lieu d'attendre le ramasse-miettes)
+  function release(md) {
+    if (!md) return;
+    try {
+      if (md.pause) md.pause();
+      md.removeAttribute('src');
+      if (md.load) md.load();
+    } catch {
+      /* rien */
+    }
+  }
+
   function clearSlot(slot) {
     if (slot.cur && slot.cur.el) {
       slot.cur.timers.forEach(clearTimeout);
-      if (slot.cur.media && slot.cur.media.pause) slot.cur.media.pause();
+      release(slot.cur.media);
       slot.cur.el.remove();
     }
     slot.cur = null;

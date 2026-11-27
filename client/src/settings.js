@@ -46,6 +46,8 @@
     $('enabledLabel').textContent = set.enabled ? 'ON' : 'OFF';
     $('showText').checked = set.showText;
     $('allowPlaced').checked = set.allowPlaced !== false;
+    $('lite').checked = !!set.lite;
+    $('relaunchBox').hidden = !!set.lite === !!s.liteAtStart;
     $('autoStart').checked = set.autoStart;
     for (const [k, fmt] of Object.entries(RANGES)) {
       $(k).value = set[k];
@@ -92,6 +94,8 @@
   $('enabled').addEventListener('change', (e) => save({ enabled: e.target.checked }, e.target.checked ? 'Réception activée' : 'Réception désactivée'));
   $('showText').addEventListener('change', (e) => save({ showText: e.target.checked }));
   $('allowPlaced').addEventListener('change', (e) => save({ allowPlaced: e.target.checked }));
+  $('lite').addEventListener('change', (e) => save({ lite: e.target.checked }, e.target.checked ? 'Mode LITE activé' : 'Mode LITE désactivé'));
+  $('relaunch').addEventListener('click', () => api.relaunch());
   $('openSender').addEventListener('click', () => api.openSender());
   $('autoStart').addEventListener('change', (e) => save({ autoStart: e.target.checked }));
   $('displayId').addEventListener('change', (e) => save({ displayId: e.target.value || null }, 'Écran changé'));

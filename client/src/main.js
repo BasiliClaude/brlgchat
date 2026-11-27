@@ -10,6 +10,22 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const ASSETS = path.join(__dirname, '..', 'assets');
+
+// Mode LITE : lu avant le démarrage, car certains réglages de Chromium
+// (accélération matérielle) ne peuvent être changés qu'au lancement.
+const LITE_AT_START = (() => {
+  try {
+    const f = path.join(app.getPath('userData'), 'settings.json');
+    return !!JSON.parse(require('fs').readFileSync(f, 'utf8')).lite;
+  } catch {
+    return false;
+  }
+})();
+if (LITE_AT_START) {
+  app.disableHardwareAcceleration(); // pas de processus GPU permanent
+  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=128');
+  app.commandLine.appendSwitch('disable-features', 'SpareRendererForSitePerProcess,MediaRouter,BackForwardCache');
+}
 let store;
 let tray = null;
 let overlay = null;
@@ -59,6 +75,7 @@ function createOverlay() {
   overlay.loadFile(path.join(__dirname, 'overlay.html'));
   overlay.webContents.on('did-finish-load', () => sendOverlaySettings());
   overlay.on('closed', () => (overlay = null));
+  overlay.webContents.setBackgroundThrottling(true);
   // Bloque toute navigation / ouverture de fenêtre depuis l'overlay
   overlay.webContents.on('will-navigate', (e) => e.preventDefault());
   overlay.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -93,6 +110,7 @@ function sendOverlaySettings() {
     volume: s.volume,
     showText: s.showText,
     allowPlaced: s.allowPlaced,
+    lite: s.lite,
     mediaBase: mediaBase(s.serverUrl),
     accessKey: s.accessKey,
   });
@@ -111,7 +129,13 @@ function mediaBase(serverUrl) {
   }
 }
 
+// En mode LITE, la fenêtre d'affichage est détruite quand rien ne s'affiche
+// (libère sa mémoire) et recréée au prochain pop.
+let overlayIdleTimer = null;
+const LITE_OVERLAY_TTL_MS = 15000;
+
 function showPop(pop) {
+  clearTimeout(overlayIdleTimer);
   if (!overlay) createOverlay();
   const send = () => overlay.webContents.send('overlay:pop', pop);
   if (overlay.webContents.isLoading()) overlay.webContents.once('did-finish-load', send);
@@ -123,13 +147,24 @@ function hideNow() {
 }
 
 ipcMain.on('overlay:busy', () => {
+  clearTimeout(overlayIdleTimer);
   if (overlay && !overlay.isVisible()) {
+    overlay.webContents.setBackgroundThrottling(false);
     overlay.showInactive();
     overlay.setAlwaysOnTop(true, 'screen-saver');
   }
 });
 ipcMain.on('overlay:idle', () => {
-  if (overlay && overlay.isVisible()) overlay.hide();
+  if (!overlay) return;
+  if (overlay.isVisible()) overlay.hide();
+  // Fenêtre cachée : Chromium peut la mettre en veille
+  overlay.webContents.setBackgroundThrottling(true);
+  clearTimeout(overlayIdleTimer);
+  if (store.get().lite) {
+    overlayIdleTimer = setTimeout(() => {
+      if (overlay && !overlay.isVisible()) overlay.destroy();
+    }, LITE_OVERLAY_TTL_MS);
+  }
 });
 
 // ---------- Réception ----------
@@ -261,7 +296,7 @@ function displaysForUi() {
 }
 
 function fullState() {
-  return { settings: store.get(), displays: displaysForUi(), status: statusForUi(), hotkeyErrors, platform: process.platform, linkCode };
+  return { liteAtStart: LITE_AT_START, settings: store.get(), displays: displaysForUi(), status: statusForUi(), hotkeyErrors, platform: process.platform, linkCode };
 }
 
 function openSettings() {
@@ -311,6 +346,10 @@ ipcMain.handle('settings:save', (_e, patch) => {
   if (s.autoStart !== before.autoStart && app.isPackaged) {
     app.setLoginItemSettings({ openAtLogin: s.autoStart, openAsHidden: true });
   }
+  if (s.lite !== before.lite) {
+    if (s.lite && overlay && !overlay.isVisible()) overlay.destroy();
+    if (!s.lite && !overlay) createOverlay();
+  }
   sendOverlaySettings();
   refreshTray();
   return fullState();
@@ -318,6 +357,10 @@ ipcMain.handle('settings:save', (_e, patch) => {
 
 ipcMain.handle('settings:test', () => testPop());
 ipcMain.handle('settings:open-sender', () => openSender());
+ipcMain.handle('settings:relaunch', () => {
+  app.relaunch();
+  app.quit();
+});
 
 // ---------- Fenêtre « Envoyer » (envoi depuis l'appli, placement précis) ----------
 
@@ -481,7 +524,7 @@ app.whenReady().then(() => {
 
   store = new SettingsStore(app.getPath('userData'));
   createTray();
-  createOverlay();
+  if (!store.get().lite) createOverlay(); // en LITE, créée seulement au premier pop
   registerHotkeys();
   applyConnection();
 
