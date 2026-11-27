@@ -10,7 +10,7 @@ function safeEqual(a, b) {
   return crypto.timingSafeEqual(ha, hb);
 }
 
-function createRelay({ port, accessKey, log = console.log, media = null, onClientMessage = null }) {
+function createRelay({ port, accessKey, log = console.log, media = null, onClientMessage = null, resolveAvatar = null }) {
   if (!accessKey) throw new Error('ACCESS_KEY manquant');
 
   const server = http.createServer((req, res) => {
@@ -91,6 +91,10 @@ function createRelay({ port, accessKey, log = console.log, media = null, onClien
       ws.linkCode = code || null; // code affiché dans l'appli pour la liaison
       ws.cid = crypto.randomBytes(6).toString('hex'); // identifiant de l'appli pour cette connexion
       ws.screen = null; // résolution de l'écran d'affichage { w, h }
+      ws.connectedAt = Date.now();
+      ws.avatar = null;
+      // état annoncé par l'appli (réception ON/OFF, LITE, etc.)
+      ws.state = { enabled: true, lite: false, allowPlaced: true, hiddenAt: null, version: null };
       wss.emit('connection', ws, req);
     });
   });
@@ -106,9 +110,24 @@ function createRelay({ port, accessKey, log = console.log, media = null, onClien
   function listClients() {
     const names = [];
     wss.clients.forEach((c) => {
-      if (c.readyState === WebSocket.OPEN) names.push(c.clientName);
+      if (c.readyState === WebSocket.OPEN) names.push(c.clientName + (c.state.enabled === false ? ' (réception coupée)' : ''));
     });
     return names;
+  }
+
+  // Un pop n'est pas envoyé à une appli dont la réception est coupée
+  const wantsPop = (c, obj) => obj.type !== 'pop' || c.state.enabled !== false;
+
+  function refreshAvatar(ws) {
+    if (!resolveAvatar || !ws.discordId) return;
+    Promise.resolve(resolveAvatar(ws.discordId))
+      .then((url) => {
+        if (url && url !== ws.avatar) {
+          ws.avatar = url;
+          broadcastPresence();
+        }
+      })
+      .catch(() => {});
   }
 
   // onlyIds : si fourni, n'envoie qu'aux applis liées à ces comptes Discord
@@ -116,7 +135,7 @@ function createRelay({ port, accessKey, log = console.log, media = null, onClien
     const data = JSON.stringify(obj);
     let sent = 0;
     wss.clients.forEach((c) => {
-      if (c.readyState === WebSocket.OPEN && (!onlyIds || (c.discordId && onlyIds.includes(c.discordId)))) {
+      if (c.readyState === WebSocket.OPEN && wantsPop(c, obj) && (!onlyIds || (c.discordId && onlyIds.includes(c.discordId)))) {
         c.send(data);
         sent++;
       }
@@ -131,6 +150,8 @@ function createRelay({ port, accessKey, log = console.log, media = null, onClien
       if (c.readyState === WebSocket.OPEN && c.linkCode && c.linkCode === code) {
         c.discordId = discordId;
         c.send(JSON.stringify({ type: 'linked', id: discordId, name: discordName }));
+        refreshAvatar(c);
+        broadcastPresence();
         n++;
       }
     });
@@ -147,7 +168,15 @@ function createRelay({ port, accessKey, log = console.log, media = null, onClien
     const list = [];
     wss.clients.forEach((c) => {
       if (c.readyState === WebSocket.OPEN) {
-        list.push({ cid: c.cid, name: c.clientName, linked: !!c.discordId, screen: c.screen });
+        list.push({
+          cid: c.cid,
+          name: c.clientName,
+          linked: !!c.discordId,
+          avatar: c.avatar,
+          screen: c.screen,
+          since: c.connectedAt,
+          ...c.state,
+        });
       }
     });
     return list;
@@ -158,7 +187,7 @@ function createRelay({ port, accessKey, log = console.log, media = null, onClien
     const data = JSON.stringify(obj);
     let sent = 0;
     wss.clients.forEach((c) => {
-      if (c.readyState === WebSocket.OPEN && cids.includes(c.cid)) {
+      if (c.readyState === WebSocket.OPEN && wantsPop(c, obj) && cids.includes(c.cid)) {
         c.send(data);
         sent++;
       }
@@ -193,6 +222,16 @@ function createRelay({ port, accessKey, log = console.log, media = null, onClien
         }
         return;
       }
+      if (msg.type === 'state') {
+        const st = ws.state;
+        if (typeof msg.enabled === 'boolean') st.enabled = msg.enabled;
+        if (typeof msg.lite === 'boolean') st.lite = msg.lite;
+        if (typeof msg.allowPlaced === 'boolean') st.allowPlaced = msg.allowPlaced;
+        if (msg.hidden === true) st.hiddenAt = Date.now();
+        if (typeof msg.version === 'string') st.version = msg.version.slice(0, 20);
+        broadcastPresence();
+        return;
+      }
       if (onClientMessage) {
         Promise.resolve(onClientMessage(ws, msg)).catch((e) => log('[relais] erreur', e));
       }
@@ -203,6 +242,7 @@ function createRelay({ port, accessKey, log = console.log, media = null, onClien
     });
     ws.on('error', () => {});
     log(`[relais] ${ws.clientName} connecté`);
+    refreshAvatar(ws);
     ws.send(JSON.stringify({ type: 'hello', version: 2, cid: ws.cid }));
     broadcastPresence();
   });

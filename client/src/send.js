@@ -25,7 +25,7 @@
     }
     for (const c of list) {
       const row = document.createElement('label');
-      row.className = 'person';
+      row.className = 'person' + (c.enabled === false ? ' off' : '');
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = toAll || selected.has(c.cid);
@@ -43,6 +43,12 @@
         t.textContent = '(moi, pour tester)';
         row.append(t);
       }
+      if (c.enabled === false || c.allowPlaced === false) {
+        const t = document.createElement('span');
+        t.className = 'tag';
+        t.textContent = c.enabled === false ? 'réception coupée' : 'refuse le placement';
+        row.append(t);
+      }
       const res = document.createElement('span');
       res.className = 'res';
       res.textContent = c.screen ? `${c.screen.w}×${c.screen.h}` : '';
@@ -53,6 +59,15 @@
     for (const cid of [...selected]) if (!list.some((c) => c.cid === cid)) selected.delete(cid);
     renderPreviewChoices();
   }
+
+  // Depuis la page Amis : « Envoyer » sur la carte d'un ami
+  window.addEventListener('lc:sendto', (e) => {
+    toAll = false;
+    $('toAll').checked = false;
+    selected.clear();
+    selected.add(e.detail);
+    renderPeople();
+  });
 
   $('toAll').addEventListener('change', (e) => {
     toAll = e.target.checked;
@@ -224,9 +239,13 @@
     e.preventDefault();
     document.body.classList.remove('dragover');
     const f = e.dataTransfer.files[0];
-    if (f) setMedia(f, f.name);
+    if (f) {
+      if (window.lcGo) window.lcGo('send');
+      setMedia(f, f.name);
+    }
   });
   document.addEventListener('paste', (e) => {
+    if (!document.getElementById('page-send').classList.contains('on')) return;
     const item = [...(e.clipboardData?.items || [])].find((i) => i.kind === 'file');
     if (item) {
       e.preventDefault();
@@ -382,6 +401,10 @@
   // ---------- Options ----------
   const showDur = () => ($('durVal').textContent = $('duration').value + ' s');
   $('duration').addEventListener('input', showDur);
+  // Envoyer avec Ctrl+Entrée
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && document.getElementById('page-send').classList.contains('on')) $('send').click();
+  });
   showDur();
 
   function result(msg, cls) {
@@ -443,7 +466,7 @@
   // ---------- État / connexion ----------
   function renderConn() {
     const c = $('conn');
-    c.className = 'status ' + (st.connected ? 'ok' : 'off');
+    c.className = 'hidden-status';
     c.textContent = st.connected ? `Connecté · ${(st.clients || []).length} en ligne` : 'Pas connecté au serveur (vérifie les paramètres)';
     $('send').disabled = !st.connected;
   }

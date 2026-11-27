@@ -19,13 +19,12 @@
 
   function renderStatus(st) {
     const el = $('status');
-    el.className = 'status';
+    el.className = 'pill status';
     if (!st.enabled) {
-      el.textContent = 'Réception désactivée';
+      el.textContent = st.state === 'connected' ? `Réception coupée · ${st.count} en ligne` : 'Réception coupée';
       el.classList.add('off');
     } else if (st.state === 'connected') {
-      const names = (st.names || []).filter(Boolean);
-      el.textContent = `Connecté · ${st.count} en ligne` + (names.length ? ` (${names.join(', ')})` : '');
+      el.textContent = `Connecté · ${st.count} en ligne`;
       el.classList.add('ok');
     } else if (st.state === 'connecting') {
       el.textContent = st.error ? `Reconnexion… ${st.error}` : 'Connexion au serveur…';
@@ -46,6 +45,8 @@
     $('enabledLabel').textContent = set.enabled ? 'ON' : 'OFF';
     $('showText').checked = set.showText;
     $('allowPlaced').checked = set.allowPlaced !== false;
+    $('lite').checked = !!set.lite;
+    $('relaunchBox').hidden = !!set.lite === !!s.liteAtStart;
     $('autoStart').checked = set.autoStart;
     for (const [k, fmt] of Object.entries(RANGES)) {
       $(k).value = set[k];
@@ -68,6 +69,9 @@
     $('linkedName').textContent = set.discordName || set.discordId;
     $('linkCmd').textContent = s.status.state === 'connected' ? `!lier ${s.linkCode}` : 'Connecte-toi d’abord au serveur';
     renderStatus(s.status);
+    document.body.classList.toggle('lite', !!set.lite);
+    document.body.classList.toggle('off', !set.enabled);
+    if (window.lcPaintRanges) window.lcPaintRanges();
   }
 
   async function save(patch, msg) {
@@ -92,7 +96,8 @@
   $('enabled').addEventListener('change', (e) => save({ enabled: e.target.checked }, e.target.checked ? 'Réception activée' : 'Réception désactivée'));
   $('showText').addEventListener('change', (e) => save({ showText: e.target.checked }));
   $('allowPlaced').addEventListener('change', (e) => save({ allowPlaced: e.target.checked }));
-  $('openSender').addEventListener('click', () => api.openSender());
+  $('lite').addEventListener('change', (e) => save({ lite: e.target.checked }, e.target.checked ? 'Mode LITE activé' : 'Mode LITE désactivé'));
+  $('relaunch').addEventListener('click', () => api.relaunch());
   $('autoStart').addEventListener('change', (e) => save({ autoStart: e.target.checked }));
   $('displayId').addEventListener('change', (e) => save({ displayId: e.target.value || null }, 'Écran changé'));
   $('copyLink').addEventListener('click', () => {

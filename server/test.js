@@ -110,6 +110,18 @@ const { popFromMessage, resolveLink } = require('./extract');
   assert.equal(hello.cid, me.cid);
   assert.equal(relay.sendTo([me.cid], { type: 'pop', text: 'placé' }), 1);
   console.log('envoi appli OK');
+
+  // état : réception coupée -> plus de pops, mais toujours visible dans la liste
+  ws.send(JSON.stringify({ type: 'state', enabled: false, lite: true, hidden: true, version: '1.5.0' }));
+  await new Promise((r) => setTimeout(r, 200));
+  const me2 = relay.clientsInfo().find((c) => c.name === 'Basile');
+  assert.equal(me2.enabled, false); assert.equal(me2.lite, true); assert.ok(me2.hiddenAt); assert.equal(me2.version, '1.5.0');
+  assert.equal(relay.sendTo([me2.cid], { type: 'pop', text: 'x' }), 0);
+  assert.equal(relay.broadcast({ type: 'pop', text: 'x' }), 0);
+  assert.ok(relay.listClients()[0].includes('réception coupée'));
+  const pres = msgs.filter((m) => m.type === 'presence').pop();
+  assert.equal(pres.clients.find((c) => c.name === 'Basile').enabled, false);
+  console.log('statuts OK');
   ws.close(); await relay.close();
   console.log('relais OK');
 })().catch((e) => { console.error(e); process.exit(1); });

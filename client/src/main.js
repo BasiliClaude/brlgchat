@@ -10,10 +10,26 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 const ASSETS = path.join(__dirname, '..', 'assets');
+
+// Mode LITE : lu avant le démarrage, car certains réglages de Chromium
+// (accélération matérielle) ne peuvent être changés qu'au lancement.
+const LITE_AT_START = (() => {
+  try {
+    const f = path.join(app.getPath('userData'), 'settings.json');
+    return !!JSON.parse(require('fs').readFileSync(f, 'utf8')).lite;
+  } catch {
+    return false;
+  }
+})();
+if (LITE_AT_START) {
+  app.disableHardwareAcceleration(); // pas de processus GPU permanent
+  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=128');
+  app.commandLine.appendSwitch('disable-features', 'SpareRendererForSitePerProcess,MediaRouter,BackForwardCache');
+}
 let store;
 let tray = null;
 let overlay = null;
-let settingsWin = null;
+let appWin = null;
 let quitting = false;
 const conn = new Connection();
 
@@ -59,6 +75,7 @@ function createOverlay() {
   overlay.loadFile(path.join(__dirname, 'overlay.html'));
   overlay.webContents.on('did-finish-load', () => sendOverlaySettings());
   overlay.on('closed', () => (overlay = null));
+  overlay.webContents.setBackgroundThrottling(true);
   // Bloque toute navigation / ouverture de fenêtre depuis l'overlay
   overlay.webContents.on('will-navigate', (e) => e.preventDefault());
   overlay.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -93,6 +110,7 @@ function sendOverlaySettings() {
     volume: s.volume,
     showText: s.showText,
     allowPlaced: s.allowPlaced,
+    lite: s.lite,
     mediaBase: mediaBase(s.serverUrl),
     accessKey: s.accessKey,
   });
@@ -111,7 +129,13 @@ function mediaBase(serverUrl) {
   }
 }
 
+// En mode LITE, la fenêtre d'affichage est détruite quand rien ne s'affiche
+// (libère sa mémoire) et recréée au prochain pop.
+let overlayIdleTimer = null;
+const LITE_OVERLAY_TTL_MS = 15000;
+
 function showPop(pop) {
+  clearTimeout(overlayIdleTimer);
   if (!overlay) createOverlay();
   const send = () => overlay.webContents.send('overlay:pop', pop);
   if (overlay.webContents.isLoading()) overlay.webContents.once('did-finish-load', send);
@@ -120,16 +144,28 @@ function showPop(pop) {
 
 function hideNow() {
   if (overlay) overlay.webContents.send('overlay:clear');
+  reportState({ hidden: true });
 }
 
 ipcMain.on('overlay:busy', () => {
+  clearTimeout(overlayIdleTimer);
   if (overlay && !overlay.isVisible()) {
+    overlay.webContents.setBackgroundThrottling(false);
     overlay.showInactive();
     overlay.setAlwaysOnTop(true, 'screen-saver');
   }
 });
 ipcMain.on('overlay:idle', () => {
-  if (overlay && overlay.isVisible()) overlay.hide();
+  if (!overlay) return;
+  if (overlay.isVisible()) overlay.hide();
+  // Fenêtre cachée : Chromium peut la mettre en veille
+  overlay.webContents.setBackgroundThrottling(true);
+  clearTimeout(overlayIdleTimer);
+  if (store.get().lite) {
+    overlayIdleTimer = setTimeout(() => {
+      if (overlay && !overlay.isVisible()) overlay.destroy();
+    }, LITE_OVERLAY_TTL_MS);
+  }
 });
 
 // ---------- Réception ----------
@@ -140,9 +176,9 @@ conn.on('pop', (pop) => {
   showPop(pop);
 });
 conn.on('status', () => {
-  if (senderWin) senderWin.webContents.send('send:status', senderState());
+  if (appWin) appWin.webContents.send('send:status', senderState());
   refreshTray();
-  if (settingsWin) settingsWin.webContents.send('settings:status', statusForUi());
+  if (appWin) appWin.webContents.send('settings:status', statusForUi());
 });
 
 // Code à taper sur Discord (!lier 123456) pour lier l'appli à son compte
@@ -150,17 +186,24 @@ const linkCode = String(require('crypto').randomInt(100000, 1000000));
 
 conn.on('linked', (msg) => {
   store.set({ discordId: String(msg.id || ''), discordName: String(msg.name || '').slice(0, 64) });
-  if (settingsWin) settingsWin.webContents.send('settings:state', fullState());
+  if (appWin) appWin.webContents.send('settings:state', fullState());
   if (Notification.isSupported()) {
     new Notification({ title: 'LiveChat', body: `Appli liée au compte Discord ${msg.name}.`, silent: true }).show();
   }
 });
 
+// On reste connecté même réception coupée : les amis voient ton statut,
+// et le serveur ne t'envoie simplement plus rien.
 function applyConnection() {
   const s = store.get();
-  if (s.enabled) conn.connect({ ...s, linkCode });
-  else conn.disconnect();
+  conn.connect({ ...s, linkCode });
 }
+
+function reportState(extra) {
+  const s = store.get();
+  conn.send({ type: 'state', enabled: s.enabled, lite: s.lite, allowPlaced: s.allowPlaced !== false, version: app.getVersion(), ...extra });
+}
+conn.on('open', () => reportState());
 
 function statusForUi() {
   return { ...conn.status, enabled: store.get().enabled };
@@ -168,10 +211,10 @@ function statusForUi() {
 
 function setEnabled(on) {
   store.set({ enabled: on });
-  if (!on) hideNow();
-  applyConnection();
+  if (!on && overlay) overlay.webContents.send('overlay:clear');
+  reportState();
   refreshTray();
-  if (settingsWin) settingsWin.webContents.send('settings:state', fullState());
+  if (appWin) appWin.webContents.send('settings:state', fullState());
 }
 
 // ---------- Raccourcis clavier globaux ----------
@@ -233,6 +276,7 @@ function refreshTray() {
       { label: 'Masquer ce qui s’affiche', accelerator: s.hotkeyHide || undefined, click: hideNow },
       { label: 'Tester l’affichage', click: testPop },
       { type: 'separator' },
+      { label: 'Amis en ligne…', click: openFriends },
       { label: 'Envoyer quelque chose…', click: openSender },
       { label: 'Paramètres…', click: openSettings },
       { label: 'Quitter LiveChat', click: () => app.quit() },
@@ -242,7 +286,7 @@ function refreshTray() {
 
 function createTray() {
   tray = new Tray(trayImage(false));
-  tray.on('click', openSettings);
+  tray.on('click', openFriends);
   refreshTray();
 }
 
@@ -261,67 +305,8 @@ function displaysForUi() {
 }
 
 function fullState() {
-  return { settings: store.get(), displays: displaysForUi(), status: statusForUi(), hotkeyErrors, platform: process.platform, linkCode };
+  return { liteAtStart: LITE_AT_START, settings: store.get(), displays: displaysForUi(), status: statusForUi(), hotkeyErrors, platform: process.platform, linkCode };
 }
-
-function openSettings() {
-  if (settingsWin) {
-    settingsWin.show();
-    settingsWin.focus();
-    return;
-  }
-  settingsWin = new BrowserWindow({
-    width: 560,
-    height: 760,
-    minWidth: 480,
-    minHeight: 500,
-    title: 'LiveChat - Paramètres',
-    icon: path.join(ASSETS, 'icon.png'),
-    autoHideMenuBar: true,
-    backgroundColor: '#17151f',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-  settingsWin.setMenu(null);
-  settingsWin.loadFile(path.join(__dirname, 'settings.html'));
-  settingsWin.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https:\/\//.test(url)) shell.openExternal(url);
-    return { action: 'deny' };
-  });
-  settingsWin.on('closed', () => {
-    settingsWin = null;
-    registerHotkeys(); // au cas où la fenêtre a été fermée pendant l'enregistrement d'un raccourci
-  });
-}
-
-ipcMain.handle('settings:get', () => fullState());
-
-ipcMain.handle('settings:save', (_e, patch) => {
-  const before = store.get();
-  const s = store.set(patch);
-  if (s.serverUrl !== before.serverUrl || s.accessKey !== before.accessKey || s.nickname !== before.nickname || s.enabled !== before.enabled || s.discordId !== before.discordId) {
-    applyConnection();
-  }
-  if (s.displayId !== before.displayId) placeOverlay();
-  if (s.hotkeyHide !== before.hotkeyHide || s.hotkeyToggle !== before.hotkeyToggle) registerHotkeys();
-  if (s.autoStart !== before.autoStart && app.isPackaged) {
-    app.setLoginItemSettings({ openAtLogin: s.autoStart, openAsHidden: true });
-  }
-  sendOverlaySettings();
-  refreshTray();
-  return fullState();
-});
-
-ipcMain.handle('settings:test', () => testPop());
-ipcMain.handle('settings:open-sender', () => openSender());
-
-// ---------- Fenêtre « Envoyer » (envoi depuis l'appli, placement précis) ----------
-
-let senderWin = null;
 
 function senderState() {
   const st = conn.status;
@@ -334,34 +319,83 @@ function senderState() {
   };
 }
 
-function openSender() {
-  if (senderWin) {
-    senderWin.show();
-    senderWin.focus();
+const openSettings = () => openApp('settings');
+const openSender = () => openApp('send');
+const openFriends = () => openApp('friends');
+
+// Fenêtre principale (Amis / Envoyer / Réglages)
+function openApp(tab) {
+  if (appWin) {
+    if (appWin.isMinimized()) appWin.restore();
+    appWin.show();
+    appWin.focus();
+    if (tab) appWin.webContents.send('app:goto', tab);
     return;
   }
-  senderWin = new BrowserWindow({
-    width: 1180,
+  const mac = process.platform === 'darwin';
+  appWin = new BrowserWindow({
+    width: 1240,
     height: 820,
-    minWidth: 900,
+    minWidth: 940,
     minHeight: 620,
-    title: 'LiveChat - Envoyer',
+    title: 'LiveChat',
     icon: path.join(ASSETS, 'icon.png'),
     autoHideMenuBar: true,
-    backgroundColor: '#17151f',
+    backgroundColor: '#140f22',
+    titleBarStyle: 'hidden',
+    ...(mac ? { trafficLightPosition: { x: 18, y: 18 } } : { titleBarOverlay: { color: '#00000000', symbolColor: '#ffffff', height: 44 } }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      spellcheck: false,
     },
   });
-  senderWin.setMenu(null);
-  senderWin.loadFile(path.join(__dirname, 'send.html'));
-  senderWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  senderWin.webContents.on('will-navigate', (e) => e.preventDefault());
-  senderWin.on('closed', () => (senderWin = null));
+  appWin.setMenu(null);
+  appWin.loadFile(path.join(__dirname, 'app.html'), { query: { tab: tab || 'friends', platform: process.platform } });
+  appWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https:\/\//.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  appWin.webContents.on('will-navigate', (e) => e.preventDefault());
+  appWin.on('closed', () => {
+    appWin = null;
+    registerHotkeys(); // au cas où la fenêtre a été fermée pendant l'enregistrement d'un raccourci
+  });
 }
+
+ipcMain.handle('settings:get', () => fullState());
+
+ipcMain.handle('settings:save', (_e, patch) => {
+  const before = store.get();
+  const s = store.set(patch);
+  if (s.serverUrl !== before.serverUrl || s.accessKey !== before.accessKey || s.nickname !== before.nickname || s.discordId !== before.discordId) {
+    applyConnection();
+  }
+  if (s.displayId !== before.displayId) placeOverlay();
+  if (s.hotkeyHide !== before.hotkeyHide || s.hotkeyToggle !== before.hotkeyToggle) registerHotkeys();
+  if (s.autoStart !== before.autoStart && app.isPackaged) {
+    app.setLoginItemSettings({ openAtLogin: s.autoStart, openAsHidden: true });
+  }
+  if (s.enabled !== before.enabled || s.lite !== before.lite || s.allowPlaced !== before.allowPlaced) reportState();
+  if (s.lite !== before.lite) {
+    if (s.lite && overlay && !overlay.isVisible()) overlay.destroy();
+    if (!s.lite && !overlay) createOverlay();
+  }
+  sendOverlaySettings();
+  refreshTray();
+  return fullState();
+});
+
+ipcMain.handle('settings:test', () => testPop());
+ipcMain.handle('settings:open-sender', () => openSender());
+ipcMain.handle('settings:relaunch', () => {
+  app.relaunch();
+  app.quit();
+});
+
+// ---------- Fenêtre « Envoyer » (envoi depuis l'appli, placement précis) ----------
 
 ipcMain.handle('send:state', () => senderState());
 
@@ -467,7 +501,7 @@ function identifyDisplays() {
 
 // ---------- Démarrage ----------
 
-app.on('second-instance', openSettings);
+app.on('second-instance', () => openFriends());
 app.on('window-all-closed', (e) => {
   // On reste dans la barre des tâches même sans fenêtre
   if (!quitting) e.preventDefault?.();
@@ -481,22 +515,22 @@ app.whenReady().then(() => {
 
   store = new SettingsStore(app.getPath('userData'));
   createTray();
-  createOverlay();
+  if (!store.get().lite) createOverlay(); // en LITE, créée seulement au premier pop
   registerHotkeys();
   applyConnection();
 
   screen.on('display-added', () => {
     placeOverlay();
-    if (settingsWin) settingsWin.webContents.send('settings:state', fullState());
+    if (appWin) appWin.webContents.send('settings:state', fullState());
   });
   screen.on('display-removed', () => {
     placeOverlay();
-    if (settingsWin) settingsWin.webContents.send('settings:state', fullState());
+    if (appWin) appWin.webContents.send('settings:state', fullState());
   });
   screen.on('display-metrics-changed', placeOverlay);
 
   // LIVECHAT_DEMO=1 : affiche un pop de test au lancement (pratique pour vérifier l'installation)
-  if (process.env.LIVECHAT_DEMO === 'send') openSender();
+  if (['friends', 'send', 'settings'].includes(process.env.LIVECHAT_DEMO)) openApp(process.env.LIVECHAT_DEMO);
   else if (process.env.LIVECHAT_DEMO) setTimeout(testPop, 1500);
 
   const s = store.get();

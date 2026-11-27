@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('livechat', {
   onStatus: (fn) => ipcRenderer.on('settings:status', (_e, s) => fn(s)),
   onState: (fn) => ipcRenderer.on('settings:state', (_e, s) => fn(s)),
   openSender: () => ipcRenderer.invoke('settings:open-sender'),
+  relaunch: () => ipcRenderer.invoke('settings:relaunch'),
+  onGoto: (fn) => ipcRenderer.on('app:goto', (_e, tab) => fn(tab)),
 
   // Fenêtre « Envoyer »
   sendState: () => ipcRenderer.invoke('send:state'),

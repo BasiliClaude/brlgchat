@@ -28,7 +28,13 @@ if (!ACCESS_KEY || ACCESS_KEY.length < 8) fail('ACCESS_KEY manquant ou trop cour
 
 media.init();
 let handleAppMessage = null;
-const relay = createRelay({ port: PORT, accessKey: ACCESS_KEY, media, onClientMessage: (ws, msg) => handleAppMessage(ws, msg) });
+const relay = createRelay({
+  port: PORT,
+  accessKey: ACCESS_KEY,
+  media,
+  onClientMessage: (ws, msg) => handleAppMessage(ws, msg),
+  resolveAvatar: (id) => avatarOf(id),
+});
 handleAppMessage = createAppSender({ relay, media, avatarOf: (id) => avatarOf(id) });
 
 const client = new Client({
@@ -144,7 +150,7 @@ async function handle(message) {
     const missing = targets.filter((id) => !linked.has(id)).map((id) => `<@${id}>`);
     message.channel
       .send({
-        content: `⚠️ ${message.author}, personne n'a reçu ton message : ${missing.join(', ')} n'a pas l'appli ouverte ou pas liée (\`!lier CODE\`).`,
+        content: `⚠️ ${message.author}, personne n'a reçu ton message : ${missing.join(', ')} n'a pas l'appli ouverte, pas liée, ou a coupé la réception (\`!lier CODE\`).`,
         allowedMentions: { users: [message.author.id] },
       })
       .then((w) => setTimeout(() => w.delete().catch(() => {}), 10000))
