@@ -26,9 +26,21 @@ Ce n'est pas un overlay de stream : c'est une appli de bureau qui affiche le mé
 
 Sur Discord, tape `!lc` dans le salon pour voir qui est connecté.
 
+### La fenêtre LiveChat
+
+Une seule fenêtre au style « verre liquide », avec trois pages dans la barre de gauche, et l'interrupteur **Réception** toujours visible en bas :
+
+- **Amis** : qui est en ligne, en temps réel. Pour chaque pote : s'il **reçoit** (point vert) ou a **coupé la réception** (point rouge), s'il a **tout masqué** récemment avec le raccourci, s'il est en mode LITE, s'il refuse les envois placés, son écran, depuis quand il est connecté et sa version. Le bouton « Envoyer à … » ouvre l'envoi avec ce pote déjà coché. Un point gris veut dire qu'il a une ancienne version de l'appli (statut inconnu) : il doit installer la dernière.
+- **Envoyer** : l'envoi depuis l'appli (voir plus bas).
+- **Réglages** : serveur, compte Discord, écran, taille, raccourcis, mode LITE…
+
+### Mode LITE
+
+Dans **Réglages > Performances**, le mode LITE rend l'appli plus légère en arrière-plan : pas d'accélération graphique permanente, moins de mémoire réservée, la couche d'affichage est fermée quand rien ne s'affiche, et plus d'animations ni d'effets de verre. Redémarre LiveChat après l'avoir activé. Pour info, au repos : environ 490 Mo en mode normal contre 390 Mo en LITE.
+
 ### Envoyer depuis l'appli (placement au pixel près)
 
-Clic droit sur l'icône LiveChat > **Envoyer quelque chose…** (ou le bouton en haut des paramètres). Ça ne passe pas par Discord :
+Page **Envoyer** de la fenêtre LiveChat (ou clic droit sur l'icône > **Envoyer quelque chose…**). Ça ne passe pas par Discord :
 
 - **Média** : un fichier (bouton, glisser-déposer, ou Ctrl+V pour coller une image), ou un lien (gif Tenor/Klipy/Giphy, image, vidéo). Un **PNG transparent** marche très bien.
 - **Destinataires** : coche les potes connectés (toi aussi, pour tester), ou « Tout le monde ».
@@ -150,21 +162,21 @@ Les installeurs sont construits automatiquement par GitHub :
 
 ### Configurer
 
-Au premier lancement, la fenêtre de paramètres s'ouvre :
+Au premier lancement, la page Réglages s'ouvre :
 
 1. **Adresse du serveur** : `wss://…` (donnée par celui qui héberge).
 2. **Mot de passe du groupe** : le `ACCESS_KEY`.
 3. **Ton pseudo** : pour que les autres voient que tu es connecté avec `!lc`.
-4. Le rond passe au vert « Connecté ». Clique **Tester l'affichage** pour régler l'écran, la position et la taille.
+4. La pastille en haut passe au vert « Connecté ». Clique **Tester l'affichage** pour régler l'écran, la position et la taille.
 
-Fermer la fenêtre ne quitte pas l'appli : elle reste dans la barre des tâches, près de l'horloge (clic sur l'icône pour rouvrir les paramètres, clic droit pour le menu ON/OFF). Coche « Lancer au démarrage » pour ne plus y penser.
+Fermer la fenêtre ne quitte pas l'appli : elle reste dans la barre des tâches, près de l'horloge (clic sur l'icône pour rouvrir la fenêtre sur la page Amis, clic droit pour le menu ON/OFF). Coche « Lancer au démarrage » pour ne plus y penser.
 
 ## Bon à savoir
 
 - **Jeux en plein écran exclusif** : certains jeux en « plein écran » pur passent par-dessus toutes les fenêtres. Mets le jeu en **plein écran fenêtré** (ou « sans bordure ») et les pops s'afficheront par-dessus.
 - Plusieurs messages d'affilée s'affichent **les uns après les autres** (file d'attente). Le raccourci « masquer » vide la file.
 - Les gifs s'affichent pendant la durée choisie ; les vidéos jusqu'à leur fin, sans dépasser la durée max.
-- Quand la réception est sur OFF, l'appli se déconnecte : tu n'apparais plus dans `!lc` et tu ne rates rien d'embarrassant en live.
+- Quand la réception est sur OFF, tu restes connecté (tes potes voient « réception coupée » dans la page Amis et dans `!lc`), mais le serveur ne t'envoie plus rien : rien d'embarrassant en live.
 - Pour vérifier une installation sans serveur, lance l'appli avec la variable `LIVECHAT_DEMO=1` : un pop de test s'affiche au démarrage.
 
 ## Développement

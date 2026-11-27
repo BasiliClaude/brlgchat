@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob: data: https:; media-src blob: https:;" />
+  <title>LiveChat</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <!-- Fond coloré que le verre laisse deviner -->
+  <div class="wallpaper" aria-hidden="true">
+    <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span><span class="blob b4"></span>
+  </div>
+
+  <header class="titlebar">
+    <img src="../assets/icon.png" alt="" class="logo" />
+    <span class="app-name">LiveChat</span>
+    <span id="status" class="pill status">…</span>
+  </header>
+
+  <div class="shell">
+    <!-- Barre latérale -->
+    <nav class="sidebar glass">
+      <button type="button" class="nav" data-tab="friends">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M16.5 14.6c2.6.1 4.4 1.8 5 4.6"/></svg>
+        <span>Amis</span>
+      </button>
+      <button type="button" class="nav" data-tab="send">
+        <svg viewBox="0 0 24 24"><path d="M21 3 10.5 13.5"/><path d="M21 3l-6.5 18-4-7.5L3 9.5z"/></svg>
+        <span>Envoyer</span>
+      </button>
+      <button type="button" class="nav" data-tab="settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        <span>Réglages</span>
+      </button>
+
+      <div class="grow"></div>
+
+      <label class="reception glass-inset" title="Activer / désactiver la réception">
+        <span class="reception-text">
+          <b>Réception</b>
+          <small id="enabledLabel">ON</small>
+        </span>
+        <input type="checkbox" id="enabled" class="ios" />
+      </label>
+    </nav>
+
+    <main>
+      <!-- ============ AMIS ============ -->
+      <section class="page" id="page-friends">
+        <div class="page-head">
+          <div>
+            <h1>Amis</h1>
+            <p class="sub" id="friendsSub">Qui est là, et qui reçoit.</p>
+          </div>
+          <button type="button" class="btn tinted" data-goto="send">Envoyer quelque chose</button>
+        </div>
+        <div id="friends" class="friends"></div>
+        <div class="legend">
+          <span><i class="dot on"></i> reçoit</span>
+          <span><i class="dot off"></i> réception coupée</span>
+          <span><i class="dot old"></i> ancienne version (statut inconnu)</span>
+        </div>
+      </section>
+
+      <!-- ============ ENVOYER ============ -->
+      <section class="page" id="page-send">
+        <div class="send-layout">
+          <div class="editor glass">
+            <div class="editor-bar">
+              <span>Écran de <select id="previewOf" class="select-pill"></select></span>
+              <span id="screenRes" class="muted"></span>
+              <span class="grow"></span>
+              <span class="muted small">Glisser · poignées · flèches 1 px (Maj 10) · Alt sans aimant</span>
+            </div>
+            <div id="stageWrap" class="stage-wrap">
+              <div id="screen" class="screen">
+                <div class="guide gv"></div>
+                <div class="guide gh"></div>
+                <div id="normalHint" class="normal-hint">
+                  <div>
+                    <b>Pop normal</b><br />
+                    Chaque ami le verra à l'endroit et à la taille réglés chez lui.<br />
+                    Choisis <b>Placement précis</b> pour décider de l'endroit exact.
+                  </div>
+                </div>
+                <div id="box" class="box" tabindex="0" hidden>
+                  <div id="boxContent" class="box-content"></div>
+                  <div class="h nw" data-h="nw"></div><div class="h n" data-h="n"></div><div class="h ne" data-h="ne"></div>
+                  <div class="h e" data-h="e"></div><div class="h se" data-h="se"></div><div class="h s" data-h="s"></div>
+                  <div class="h sw" data-h="sw"></div><div class="h w" data-h="w"></div>
+                  <div id="boxLabel" class="box-label"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="send-panel">
+            <div id="conn" class="hidden-status"></div>
+            <div class="card glass">
+              <h2>Média</h2>
+              <div class="row">
+                <button type="button" id="pickFile" class="btn grow">Choisir un fichier…</button>
+                <button type="button" id="clearMedia" class="btn icon" title="Retirer le média">✕</button>
+              </div>
+              <input type="file" id="file" accept="image/*,video/*,audio/*" hidden />
+              <div id="fileName" class="muted small">Ou glisse un fichier ici, ou colle une image (Ctrl+V).</div>
+              <input id="link" class="field-input" type="text" placeholder="Ou un lien : gif, image, vidéo…" spellcheck="false" />
+              <input id="text" class="field-input" type="text" maxlength="300" placeholder="Texte (facultatif)" />
+            </div>
+
+            <div class="card glass">
+              <h2>Pour qui ?</h2>
+              <label class="switch-row"><span>Tout le monde</span><input type="checkbox" id="toAll" class="ios" /></label>
+              <div id="people" class="people"></div>
+            </div>
+
+            <div class="card glass">
+              <h2>Où ?</h2>
+              <div class="seg">
+                <button type="button" id="modeNormal" class="on">Pop normal</button>
+                <button type="button" id="modePlaced">Placement précis</button>
+              </div>
+              <div id="placedTools" hidden>
+                <div class="nums">
+                  <label>X <input id="nx" type="number" step="1" /></label>
+                  <label>Y <input id="ny" type="number" step="1" /></label>
+                  <label>L <input id="nw" type="number" step="1" min="1" /></label>
+                  <label>H <input id="nh" type="number" step="1" min="1" /></label>
+                </div>
+                <div class="chips">
+                  <button type="button" id="center" class="chip">Centrer</button>
+                  <button type="button" id="native" class="chip">Taille d'origine</button>
+                  <button type="button" id="fill" class="chip">Plein écran</button>
+                </div>
+                <label class="switch-row"><span>Garder les proportions</span><input type="checkbox" id="lockRatio" class="ios" checked /></label>
+                <label class="switch-row"><span>Sans cadre ni texte<small>Juste l'image (PNG transparent, crosshair…)</small></span><input type="checkbox" id="bare" class="ios" /></label>
+              </div>
+            </div>
+
+            <div class="card glass">
+              <h2>Options</h2>
+              <label class="switch-row"><span>Anonyme<small>Rien n'indique qui l'envoie</small></span><input type="checkbox" id="anonymous" class="ios" /></label>
+              <label class="slider-row"><span>Durée <b id="durVal"></b></span><input id="duration" type="range" min="1" max="60" step="1" value="5" /></label>
+              <label class="switch-row"><span>Vidéo : la jouer en entier</span><input type="checkbox" id="playFull" class="ios" checked /></label>
+            </div>
+
+            <button type="button" id="send" class="btn tinted big">Envoyer</button>
+            <div id="result" class="result"></div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ============ RÉGLAGES ============ -->
+      <section class="page" id="page-settings">
+        <div class="page-head">
+          <div>
+            <h1>Réglages</h1>
+            <p class="sub">Tout est enregistré automatiquement.</p>
+          </div>
+          <button type="button" id="test" class="btn">Tester l'affichage</button>
+        </div>
+
+        <div class="settings-grid">
+          <div class="card glass">
+            <h2>Connexion</h2>
+            <label class="field"><span>Adresse du serveur</span>
+              <input id="serverUrl" class="field-input" type="text" placeholder="wss://ton-serveur.up.railway.app" spellcheck="false" />
+            </label>
+            <label class="field"><span>Mot de passe du groupe</span>
+              <div class="row">
+                <input id="accessKey" class="field-input grow" type="password" placeholder="donné par celui qui héberge" spellcheck="false" />
+                <button type="button" id="showKey" class="btn">Voir</button>
+              </div>
+            </label>
+            <label class="field"><span>Ton pseudo</span>
+              <input id="nickname" class="field-input" type="text" maxlength="32" placeholder="ex : Basile" />
+            </label>
+          </div>
+
+          <div class="card glass">
+            <h2>Compte Discord</h2>
+            <div id="linkOff">
+              <p class="hint">Pour recevoir les messages où on te <b>@mentionne</b>, tape une fois dans le salon live chat :</p>
+              <div class="row">
+                <code id="linkCmd" class="cmd grow"></code>
+                <button type="button" id="copyLink" class="btn">Copier</button>
+              </div>
+            </div>
+            <div id="linkOn" class="row" hidden>
+              <span class="linked grow">✅ Lié à <b id="linkedName"></b></span>
+              <button type="button" id="unlink" class="btn">Délier</button>
+            </div>
+          </div>
+
+          <div class="card glass span2">
+            <h2>Affichage</h2>
+            <div class="two">
+              <div>
+                <label class="field"><span>Écran</span>
+                  <div class="row">
+                    <select id="displayId" class="field-input grow"></select>
+                    <button type="button" id="identify" class="btn">Identifier</button>
+                  </div>
+                </label>
+                <div class="field"><span>Position</span>
+                  <div class="pos-grid" id="positionGrid">
+                    <button type="button" data-pos="top-left" title="En haut à gauche">↖</button>
+                    <button type="button" data-pos="top-center" title="En haut au centre">↑</button>
+                    <button type="button" data-pos="top-right" title="En haut à droite">↗</button>
+                    <span></span>
+                    <button type="button" data-pos="center" title="Au centre">●</button>
+                    <span></span>
+                    <button type="button" data-pos="bottom-left" title="En bas à gauche">↙</button>
+                    <button type="button" data-pos="bottom-center" title="En bas au centre">↓</button>
+                    <button type="button" data-pos="bottom-right" title="En bas à droite">↘</button>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label class="slider-row"><span>Largeur max <b id="maxWidthPctVal"></b></span><input id="maxWidthPct" type="range" min="5" max="100" step="1" /></label>
+                <label class="slider-row"><span>Hauteur max <b id="maxHeightPctVal"></b></span><input id="maxHeightPct" type="range" min="5" max="100" step="1" /></label>
+                <label class="slider-row"><span>Volume des vidéos <b id="volumeVal"></b></span><input id="volume" type="range" min="0" max="100" step="5" /></label>
+                <label class="switch-row"><span>Pseudo et texte sous le média</span><input id="showText" type="checkbox" class="ios" /></label>
+                <label class="switch-row"><span>Accepter les envois placés<small>L'envoyeur choisit l'endroit et la taille sur ton écran</small></span><input id="allowPlaced" type="checkbox" class="ios" /></label>
+                <p class="hint">Durées : images et gifs 5 s, texte seul 3 s, vidéos en entier.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card glass">
+            <h2>Raccourcis clavier</h2>
+            <p class="hint">Clique puis appuie sur la combinaison. Échap pour annuler, Retour arrière pour effacer.</p>
+            <div class="field"><span>Tout masquer</span>
+              <button type="button" class="hotkey" data-key="hotkeyHide"></button>
+              <div class="err" data-err="hotkeyHide"></div>
+            </div>
+            <div class="field"><span>Réception ON / OFF</span>
+              <button type="button" class="hotkey" data-key="hotkeyToggle"></button>
+              <div class="err" data-err="hotkeyToggle"></div>
+            </div>
+          </div>
+
+          <div class="card glass">
+            <h2>Performances et démarrage</h2>
+            <label class="switch-row"><span>Mode LITE<small>Moins de mémoire et de processeur : pas d'accélération graphique permanente, pas d'animations ni d'effets de verre.</small></span><input id="lite" type="checkbox" class="ios" /></label>
+            <div id="relaunchBox" class="row" hidden>
+              <span class="hint grow">Redémarre LiveChat pour appliquer complètement.</span>
+              <button type="button" id="relaunch" class="btn">Redémarrer</button>
+            </div>
+            <label class="switch-row"><span>Lancer au démarrage de l'ordinateur</span><input id="autoStart" type="checkbox" class="ios" /></label>
+            <p class="hint">Fermer cette fenêtre ne quitte pas LiveChat : il reste près de l'horloge.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+  <script src="settings.js"></script>
+  <script src="send.js"></script>
+  <script src="friends.js"></script>
+</body>
+</html>
