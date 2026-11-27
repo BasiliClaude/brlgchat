@@ -37,6 +37,11 @@
 
       <div class="grow"></div>
 
+      <button type="button" id="updateBanner" class="update-banner" hidden>
+        <b id="updateTitle">Mise à jour prête</b>
+        <small id="updateSub">Clique pour redémarrer</small>
+      </button>
+
       <label class="reception glass-inset" title="Activer / désactiver la réception">
         <span class="reception-text">
           <b>Réception</b>
@@ -249,6 +254,10 @@
               <span class="hint grow">Redémarre LiveChat pour appliquer complètement.</span>
               <button type="button" id="relaunch" class="btn">Redémarrer</button>
             </div>
+            <div class="switch-row version-row">
+              <span>Version <b id="appVersion"></b><small id="updateStatus"></small></span>
+              <button type="button" id="checkUpdate" class="btn small">Rechercher une mise à jour</button>
+            </div>
             <label class="switch-row"><span>Lancer au démarrage de l'ordinateur</span><input id="autoStart" type="checkbox" class="ios" /></label>
             <p class="hint">Fermer cette fenêtre ne quitte pas LiveChat : il reste près de l'horloge.</p>
           </div>
@@ -262,5 +271,6 @@
   <script src="settings.js"></script>
   <script src="send.js"></script>
   <script src="friends.js"></script>
+  <script src="updates.js"></script>
 </body>
 </html>

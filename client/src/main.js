@@ -2,6 +2,12 @@ const { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, nativeI
 const path = require('path');
 const { SettingsStore } = require('./settings-store');
 const { Connection } = require('./connection');
+const { Updater } = require('./updater');
+const updater = new Updater();
+updater.on('state', (st) => {
+  refreshTray();
+  if (appWin) appWin.webContents.send('update:state', st);
+});
 
 // Une seule instance de l'appli à la fois
 if (!app.requestSingleInstanceLock()) {
@@ -265,6 +271,11 @@ function refreshTray() {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: statusLabel(), enabled: false },
+      ...(updater.state.state === 'ready'
+        ? [{ label: `Redémarrer pour mettre à jour (${updater.state.version})`, click: () => updater.install() }]
+        : updater.state.state === 'manual'
+          ? [{ label: `Télécharger la version ${updater.state.version}…`, click: () => updater.openDownload() }]
+          : []),
       { type: 'separator' },
       {
         label: 'Réception activée',
@@ -305,7 +316,7 @@ function displaysForUi() {
 }
 
 function fullState() {
-  return { liteAtStart: LITE_AT_START, settings: store.get(), displays: displaysForUi(), status: statusForUi(), hotkeyErrors, platform: process.platform, linkCode };
+  return { update: updater.state, liteAtStart: LITE_AT_START, settings: store.get(), displays: displaysForUi(), status: statusForUi(), hotkeyErrors, platform: process.platform, linkCode };
 }
 
 function senderState() {
@@ -366,6 +377,8 @@ function openApp(tab) {
 }
 
 ipcMain.handle('settings:get', () => fullState());
+ipcMain.handle('update:check', () => updater.check());
+ipcMain.handle('update:install', () => updater.install());
 
 ipcMain.handle('settings:save', (_e, patch) => {
   const before = store.get();
@@ -518,6 +531,7 @@ app.whenReady().then(() => {
   if (!store.get().lite) createOverlay(); // en LITE, créée seulement au premier pop
   registerHotkeys();
   applyConnection();
+  updater.start();
 
   screen.on('display-added', () => {
     placeOverlay();

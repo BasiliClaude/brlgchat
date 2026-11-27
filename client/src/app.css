@@ -342,6 +342,21 @@ input[type="range"]::-webkit-slider-thumb {
 .result.err { color: var(--bad); }
 body.dragover .stage-wrap { outline: 3px dashed var(--accent); outline-offset: -10px; border-radius: var(--r-xl); }
 
+/* ---------- Mise à jour ---------- */
+.update-banner {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; margin-bottom: 8px;
+  padding: 10px 12px; border-radius: var(--r-lg); cursor: pointer; text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: linear-gradient(165deg, #3d9bff, #0a6cff 55%, #7a4dff);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 8px 24px rgba(10, 108, 255, 0.35);
+}
+.update-banner small { font-size: 12px; opacity: 0.85; }
+.update-banner.busy { cursor: default; background: rgba(255, 255, 255, 0.1); box-shadow: none; border-color: rgba(255, 255, 255, 0.12); }
+.update-banner .bar { width: 100%; height: 4px; margin-top: 6px; border-radius: 99px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+.update-banner .bar i { display: block; height: 100%; width: var(--p, 0%); background: var(--accent); border-radius: 99px; }
+.version-row { cursor: default; }
+.version-row b { font-weight: 700; }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 26px; z-index: 10; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;

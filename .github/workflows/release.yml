@@ -1,0 +1,98 @@
+name: Publier une mise à jour
+
+# Onglet Actions > « Publier une mise à jour » > Run workflow.
+# Le numéro de version monte tout seul (1.5.0 -> 1.5.1), les installeurs sont
+# construits pour Windows / Mac / Linux et publiés dans « Releases ».
+# Les applis déjà installées les trouvent et se mettent à jour toutes seules.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Numéro de version (laisser vide = +1 automatique, ex : 1.5.0 -> 1.5.1)"
+        required: false
+        default: ""
+      notes:
+        description: "Ce qui change (facultatif, affiché sur la page de téléchargement)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - id: v
+        working-directory: client
+        env:
+          WANTED: ${{ inputs.version }}
+        run: |
+          current=$(node -p "require('./package.json').version")
+          if [ -n "$WANTED" ]; then next="${WANTED#v}"; else
+            next=$(node -p "const [a,b,c]='$current'.split('.').map(Number); [a,b,c+1].join('.')")
+          fi
+          if ! echo "$next" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then echo "Version invalide : $next"; exit 1; fi
+          echo "version=$next" >> "$GITHUB_OUTPUT"
+          echo "Version $current -> $next"
+      - name: Enregistrer la nouvelle version
+        env:
+          NEXT: ${{ steps.v.outputs.version }}
+        run: |
+          cd client
+          npm version "$NEXT" --no-git-tag-version --allow-same-version
+          cd ..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/package.json client/package-lock.json 2>/dev/null || git add client/package.json
+          git commit -m "Version $NEXT" || echo "rien à changer"
+          git tag "v$NEXT"
+          git push origin HEAD:main "v$NEXT"
+      - name: Créer la release (brouillon)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ steps.v.outputs.version }}
+          NOTES: ${{ inputs.notes }}
+        run: gh release create "v$NEXT" --draft --title "LiveChat $NEXT" --notes "${NOTES:-Mise à jour de LiveChat.}" -R "$GITHUB_REPOSITORY"
+
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.prepare.outputs.version }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publier la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEXT: ${{ needs.prepare.outputs.version }}
+        run: gh release edit "v$NEXT" --draft=false --latest -R "$GITHUB_REPOSITORY"
